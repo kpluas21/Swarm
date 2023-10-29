@@ -107,6 +107,7 @@ int main(void)
 
     // Variables
     int frame = 0;
+    int endingFrame;
     int previousScore = 0;
     int currentScore = 0;
 
@@ -129,12 +130,16 @@ int main(void)
             frame++;
             if (frame > 120)
             {
-                currentScreen = GAMEPLAY;
+                currentScreen = TITLE;
             }
         }
         break;
         case TITLE:
         {
+            if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            {
+                currentScreen = GAMEPLAY;
+            }
         }
         break;
         case GAMEPLAY:
@@ -166,14 +171,8 @@ int main(void)
             checkBulletCollisions(bullets);
             if (checkCollisions(enemies, bullets, player, &currentScore) == 1)
             {
-                BeginDrawing();
-                {
-                    ClearBackground(RAYWHITE);
-                    DrawTexture(texture, 0, 0, RAYWHITE);
-                    DrawText(TextFormat("GAME OVER\n    Score: %d", currentScore), screenWidth / 2 - 10, screenHeight / 2, 25, BLUE);
-                }
-                EndDrawing();
-                WaitTime(5);
+                currentScreen = ENDING;
+                endingFrame = frame;
                 break;
             }
 
@@ -181,6 +180,14 @@ int main(void)
         }
         break;
         case ENDING:
+        {
+            frame++;
+            if((frame - endingFrame) >= 240)
+            {
+                //Goes straight to cleanup, terminating the program.
+                goto EXIT;
+            }
+        }
             break;
         default:
             break;
@@ -200,6 +207,12 @@ int main(void)
             }
             break;
             case TITLE:
+            {
+                char*  title = "SWARM\n\n\n\n\n\nClick the Mouse to Begin";
+                float textWidth = MeasureText(title, 40);
+                ClearBackground(BLACK);
+                DrawText(title, (screenWidth - textWidth) / 2, screenHeight / 2, 40, WHITE);
+            }
                 break;
             case GAMEPLAY:
             {
@@ -211,6 +224,10 @@ int main(void)
             }
             break;
             case ENDING:
+            {
+                DrawTexture(texture, 0, 0, RAYWHITE);
+                DrawText(TextFormat("Game Over\n\n\n\nScore: %d", currentScore), screenWidth / 2 - 100, screenHeight / 2, 40, BLACK);
+            }
                 break;
             default:
                 break;
@@ -220,6 +237,8 @@ int main(void)
         EndDrawing();
     }
 
+
+EXIT:
     // CLEAN UP
     cleanupEntities(bullets, enemies);
     MemFree(enemies);
