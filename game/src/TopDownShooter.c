@@ -24,11 +24,18 @@
 // Local Variables Definition (local to this module)
 //----------------------------------------------------------------------------------
 // Window Globals
-typedef enum GameScreen { LOGO = 0, TITLE, GAMEPLAY, ENDING } GameScreen;
+typedef enum GameScreen
+{
+    LOGO = 0,
+    TITLE,
+    GAMEPLAY,
+    ENDING
+} GameScreen;
 
 static const int screenWidth = 1280;
 static const int screenHeight = 720;
 static const char *windowTitle = "Swarm";
+static const char *logoString = "A GAME BY\nKEVIN PLUAS";
 
 // Player Globals
 static int PLAYER_SPEED = 1;
@@ -87,6 +94,7 @@ Vector2 createVector2(int x, int y);
 //----------------------------------------------------------------------------------
 int main(void)
 {
+    // Initialize critical system components
     InitWindow(screenWidth, screenHeight, windowTitle);
     SetTargetFPS(60);
     InitAudioDevice();
@@ -97,76 +105,122 @@ int main(void)
     ImageResize(&floorBackground, screenWidth, screenHeight);
     Texture2D texture = LoadTextureFromImage(floorBackground);
 
-    Entity *player = initPlayer();
-    Entity **bullets = initBullets();
-    Entity **enemies = initEnemies();
-
-    Vector2 mouseV = createVector2(0, 0);
-    Vector2 playerV;
-
+    // Variables
     int frame = 0;
     int previousScore = 0;
     int currentScore = 0;
 
+    // Entity initialization
+    Entity *player = initPlayer();
+    Entity **bullets = initBullets();
+    Entity **enemies = initEnemies();
+
+    Vector2 playerV;
+
+    GameScreen currentScreen = LOGO;
+
     while (!WindowShouldClose())
     {
-        // Input 1 frame
-        playerMovementInput(player);
-
-        //Update the players vector
-        playerV = createVector2(player->body.x, player->body.y);
-
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        // UPDATE LOOP
+        switch (currentScreen)
         {
-            TraceLog(LOG_INFO, TextFormat("X: %d Y: %d", GetMouseX(), GetMouseY()));
-            mouseV = createVector2(GetMouseX(), GetMouseY());
-            createBullet(bullets, playerV, mouseV);
-        }
-        if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
-        { // Every ten kills will increase the max number of enemies possible on screen at
-            CURRENT_MAX_ENEMIES++;
-            previousScore = currentScore;
-        }
-        if (frame % 30 == 0)
+        case LOGO:
         {
-            generateNewEnemy(enemies, playerV);
-        }
-        // Update 1 frame
-        updateBullets(bullets);
-        updateEnemies(enemies, playerV);
-
-        // Check collisions 1 frame
-        checkBulletCollisions(bullets);
-        if (checkCollisions(enemies, bullets, player, &currentScore) == 1)
-        {
-            BeginDrawing();
+            frame++;
+            if (frame > 120)
             {
-                ClearBackground(RAYWHITE);
-                DrawTexture(texture, 0, 0, RAYWHITE);
-                DrawText(TextFormat("GAME OVER\n    Score: %d", currentScore), screenWidth / 2 - 10, screenHeight / 2, 25, BLUE);
+                currentScreen = GAMEPLAY;
             }
-            EndDrawing();
-            WaitTime(5);
+        }
+        break;
+        case TITLE:
+        {
+        }
+        break;
+        case GAMEPLAY:
+        {
+            // Input 1 frame
+            playerMovementInput(player);
+
+            // Update the players vector
+            playerV = createVector2(player->body.x, player->body.y);
+
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            {
+                createBullet(bullets, playerV, createVector2(GetMouseX(), GetMouseY()));
+            }
+            if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
+            { // Every ten kills will increase the max number of enemies possible on screen at
+                CURRENT_MAX_ENEMIES++;
+                previousScore = currentScore;
+            }
+            if (frame % 30 == 0)
+            {
+                generateNewEnemy(enemies, playerV);
+            }
+            // Update 1 frame
+            updateBullets(bullets);
+            updateEnemies(enemies, playerV);
+
+            // Check collisions 1 frame
+            checkBulletCollisions(bullets);
+            if (checkCollisions(enemies, bullets, player, &currentScore) == 1)
+            {
+                BeginDrawing();
+                {
+                    ClearBackground(RAYWHITE);
+                    DrawTexture(texture, 0, 0, RAYWHITE);
+                    DrawText(TextFormat("GAME OVER\n    Score: %d", currentScore), screenWidth / 2 - 10, screenHeight / 2, 25, BLUE);
+                }
+                EndDrawing();
+                WaitTime(5);
+                break;
+            }
+
+            frame++;
+        }
+        break;
+        case ENDING:
+            break;
+        default:
             break;
         }
 
-        // Render 1 frame
+        // RENDER LOOP
         BeginDrawing();
         {
             ClearBackground(RAYWHITE);
-            DrawTexture(texture, 0, 0, RAYWHITE);
-            DrawRectangleRec(player->body, RED);
-            renderBullets(bullets);
-            renderEnemies(enemies);
-            DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
+            switch (currentScreen)
+            {
+            case LOGO:
+            {
+                float textWidth = MeasureText(logoString, 25);
+                ClearBackground(BLACK);
+                DrawText(logoString, (screenWidth - textWidth) / 2, screenHeight / 2, 25, WHITE);
+            }
+            break;
+            case TITLE:
+                break;
+            case GAMEPLAY:
+            {
+                DrawTexture(texture, 0, 0, RAYWHITE);
+                DrawRectangleRec(player->body, RED);
+                renderBullets(bullets);
+                renderEnemies(enemies);
+                DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
+            }
+            break;
+            case ENDING:
+                break;
+            default:
+                break;
+            }
         }
-        EndDrawing();
 
-        frame++;
+        EndDrawing();
     }
 
     // CLEAN UP
-
     cleanupEntities(bullets, enemies);
     MemFree(enemies);
     MemFree(bullets);
@@ -182,18 +236,6 @@ int main(void)
 //----------------------------------------------------------------------------------
 // Local Function Definitions
 //----------------------------------------------------------------------------------
-
-void titleScreen()
-{
-    while(!WindowShouldClose())
-    {
-        BeginDrawing();
-        {
-
-        }
-        EndDrawing();
-    }
-}
 
 Entity *initPlayer()
 {
