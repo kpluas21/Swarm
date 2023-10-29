@@ -23,13 +23,19 @@
 //----------------------------------------------------------------------------------
 // Local Variables Definition (local to this module)
 //----------------------------------------------------------------------------------
-static const int screenWidth = 800;
-static const int screenHeight = 450;
+// Window Globals
+typedef enum GameScreen { LOGO = 0, TITLE, GAMEPLAY, ENDING } GameScreen;
+
+static const int screenWidth = 1280;
+static const int screenHeight = 720;
 static const char *windowTitle = "Swarm";
 
-static const int MAX_ENEMIES = 50; //The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
+// Player Globals
+static int PLAYER_SPEED = 1;
+
+static const int MAX_ENEMIES = 50; // The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
 static const int MAX_BULLETS = 1;
-static int CURRENT_MAX_ENEMIES = 5; //The current capacity. Used for all the other loops. 
+static int CURRENT_MAX_ENEMIES = 5; // The current capacity. Used for all the other loops.
 static Sound gunFx;
 static Image floorBackground;
 
@@ -49,10 +55,11 @@ typedef struct Entity
     Vector2 direction; // Used for the bullets to calculate their trajectory
 } Entity;
 
-
 //----------------------------------------------------------------------------------
 // Local Function Declarations
 //----------------------------------------------------------------------------------
+
+void titleScreen();
 
 Entity *initPlayer();
 Entity **initBullets();
@@ -69,7 +76,7 @@ void updateBullets(Entity **bullets);
 void renderBullets(Entity **bullets);
 void checkBulletCollisions(Entity **bullets);
 
-int checkCollisions(Entity** enemies, Entity** bullets, Entity* player, int* score);
+int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int *score);
 
 void cleanupEntities(Entity **bullets, Entity **enemies);
 
@@ -84,7 +91,7 @@ int main(void)
     SetTargetFPS(60);
     InitAudioDevice();
 
-    //Asset loading
+    // Asset loading
     gunFx = LoadSound("resources/blaster.mp3");
     floorBackground = LoadImage("resources/ground.png");
     ImageResize(&floorBackground, screenWidth, screenHeight);
@@ -103,9 +110,11 @@ int main(void)
 
     while (!WindowShouldClose())
     {
-        playerV = createVector2(player->body.x, player->body.y);
         // Input 1 frame
         playerMovementInput(player);
+
+        //Update the players vector
+        playerV = createVector2(player->body.x, player->body.y);
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
         {
@@ -113,8 +122,8 @@ int main(void)
             mouseV = createVector2(GetMouseX(), GetMouseY());
             createBullet(bullets, playerV, mouseV);
         }
-        if((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore) 
-        {//Every ten kills will increase the max number of enemies possible on screen at
+        if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
+        { // Every ten kills will increase the max number of enemies possible on screen at
             CURRENT_MAX_ENEMIES++;
             previousScore = currentScore;
         }
@@ -131,9 +140,11 @@ int main(void)
         if (checkCollisions(enemies, bullets, player, &currentScore) == 1)
         {
             BeginDrawing();
-            ClearBackground(RAYWHITE);
-            DrawTexture(texture, 0, 0, RAYWHITE);
-            DrawText(TextFormat("GAME OVER\n    Score: %d", currentScore), screenWidth/2 - 10, screenHeight/2, 25, BLUE);
+            {
+                ClearBackground(RAYWHITE);
+                DrawTexture(texture, 0, 0, RAYWHITE);
+                DrawText(TextFormat("GAME OVER\n    Score: %d", currentScore), screenWidth / 2 - 10, screenHeight / 2, 25, BLUE);
+            }
             EndDrawing();
             WaitTime(5);
             break;
@@ -141,25 +152,48 @@ int main(void)
 
         // Render 1 frame
         BeginDrawing();
+        {
             ClearBackground(RAYWHITE);
             DrawTexture(texture, 0, 0, RAYWHITE);
             DrawRectangleRec(player->body, RED);
             renderBullets(bullets);
             renderEnemies(enemies);
             DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
+        }
         EndDrawing();
 
         frame++;
     }
+
+    // CLEAN UP
+
     cleanupEntities(bullets, enemies);
-    CloseWindow();
+    MemFree(enemies);
+    MemFree(bullets);
     MemFree(player);
+    UnloadSound(gunFx);
+    UnloadImage(floorBackground);
+    UnloadTexture(texture);
+    CloseAudioDevice();
+    CloseWindow();
     return 0;
 }
 
 //----------------------------------------------------------------------------------
 // Local Function Definitions
 //----------------------------------------------------------------------------------
+
+void titleScreen()
+{
+    while(!WindowShouldClose())
+    {
+        BeginDrawing();
+        {
+
+        }
+        EndDrawing();
+    }
+}
 
 Entity *initPlayer()
 {
@@ -317,7 +351,7 @@ void updateEnemies(Entity **enemies, Vector2 playerV)
     for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     { // go through every enemy
         if (enemies[i] != NULL)
-        {//
+        { //
             enemies[i]->direction = Vector2Normalize(Vector2Subtract(playerV, createVector2(enemies[i]->body.x, enemies[i]->body.y)));
             enemies[i]->body.y += enemies[i]->direction.y * enemies[i]->speed;
             enemies[i]->body.x += enemies[i]->direction.x * enemies[i]->speed;
@@ -329,12 +363,11 @@ void renderEnemies(Entity **enemies)
 {
     for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
-        if(enemies[i] != NULL)
+        if (enemies[i] != NULL)
         {
             DrawRectangleRec(enemies[i]->body, GREEN);
         }
     }
-    
 }
 
 void updateBullets(Entity **bullets)
@@ -382,14 +415,14 @@ void checkBulletCollisions(Entity **bullets)
     }
 }
 
-int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int* score)
+int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int *score)
 {
-    for(int i = 0; i < CURRENT_MAX_ENEMIES; i++)
+    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
-        for(int j = 0; j < MAX_BULLETS; j++)
+        for (int j = 0; j < MAX_BULLETS; j++)
         {
-            if(enemies[i] != NULL && bullets[j] != NULL)
-                if(CheckCollisionRecs(enemies[i]->body, bullets[j]->body))
+            if (enemies[i] != NULL && bullets[j] != NULL)
+                if (CheckCollisionRecs(enemies[i]->body, bullets[j]->body))
                 {
                     MemFree(bullets[j]);
                     MemFree(enemies[i]);
@@ -400,8 +433,8 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int* sco
                 }
         }
 
-        if(enemies[i] != NULL && CheckCollisionRecs(enemies[i]->body, player->body))
-        {//The enemy collided with the player. Triggering a game over
+        if (enemies[i] != NULL && CheckCollisionRecs(enemies[i]->body, player->body))
+        { // The enemy collided with the player. Triggering a game over
 
             return 1;
         }
