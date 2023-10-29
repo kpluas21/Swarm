@@ -2,7 +2,7 @@
  *
  *   raylib game template
  *
- *   TopDownShooter
+ *   Swarm
  *   <Game description>
  *
  *   This game has been created using raylib (www.raylib.com)
@@ -25,10 +25,13 @@
 //----------------------------------------------------------------------------------
 static const int screenWidth = 800;
 static const int screenHeight = 450;
-static const char *windowTitle = "TopDownShooter";
+static const char *windowTitle = "Swarm";
 
-static const int MAX_ENEMIES = 20;
-static const int MAX_BULLETS = 3;
+static const int MAX_ENEMIES = 50; //The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
+static const int MAX_BULLETS = 1;
+static int CURRENT_MAX_ENEMIES = 5; //The current capacity. Used for all the other loops. 
+static Sound gunFx;
+static Image floorBackground;
 
 //----------------------------------------------------------------------------------
 // Local Structs Declaration
@@ -46,6 +49,7 @@ typedef struct Entity
     Vector2 direction; // Used for the bullets to calculate their trajectory
 } Entity;
 
+
 //----------------------------------------------------------------------------------
 // Local Function Declarations
 //----------------------------------------------------------------------------------
@@ -57,12 +61,15 @@ Entity **initEnemies();
 void playerMovementInput(Entity *player);
 
 void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV);
-void generateNewEnemy(Entity** enemies);
-
+void generateNewEnemy(Entity **enemies, Vector2 playerV);
+void updateEnemies(Entity **enemies, Vector2 playerV);
+void renderEnemies(Entity **enemies);
 
 void updateBullets(Entity **bullets);
 void renderBullets(Entity **bullets);
 void checkBulletCollisions(Entity **bullets);
+
+int checkCollisions(Entity** enemies, Entity** bullets, Entity* player, int* score);
 
 void cleanupEntities(Entity **bullets, Entity **enemies);
 
@@ -75,16 +82,28 @@ int main(void)
 {
     InitWindow(screenWidth, screenHeight, windowTitle);
     SetTargetFPS(60);
+    InitAudioDevice();
+
+    //Asset loading
+    gunFx = LoadSound("resources/blaster.mp3");
+    floorBackground = LoadImage("resources/ground.png");
+    ImageResize(&floorBackground, screenWidth, screenHeight);
+    Texture2D texture = LoadTextureFromImage(floorBackground);
 
     Entity *player = initPlayer();
     Entity **bullets = initBullets();
     Entity **enemies = initEnemies();
 
     Vector2 mouseV = createVector2(0, 0);
-    Vector2 playerV = createVector2(player->body.x, player->body.y);
+    Vector2 playerV;
+
+    int frame = 0;
+    int previousScore = 0;
+    int currentScore = 0;
 
     while (!WindowShouldClose())
     {
+        playerV = createVector2(player->body.x, player->body.y);
         // Input 1 frame
         playerMovementInput(player);
 
@@ -92,23 +111,47 @@ int main(void)
         {
             TraceLog(LOG_INFO, TextFormat("X: %d Y: %d", GetMouseX(), GetMouseY()));
             mouseV = createVector2(GetMouseX(), GetMouseY());
-            playerV = createVector2(player->body.x, player->body.y);
             createBullet(bullets, playerV, mouseV);
+        }
+        if((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore) 
+        {//Every ten kills will increase the max number of enemies possible on screen at
+            CURRENT_MAX_ENEMIES++;
+            previousScore = currentScore;
+        }
+        if (frame % 30 == 0)
+        {
+            generateNewEnemy(enemies, playerV);
         }
         // Update 1 frame
         updateBullets(bullets);
+        updateEnemies(enemies, playerV);
 
         // Check collisions 1 frame
         checkBulletCollisions(bullets);
+        if (checkCollisions(enemies, bullets, player, &currentScore) == 1)
+        {
+            BeginDrawing();
+            ClearBackground(RAYWHITE);
+            DrawTexture(texture, 0, 0, RAYWHITE);
+            DrawText(TextFormat("GAME OVER\n    Score: %d", currentScore), screenWidth/2 - 10, screenHeight/2, 25, BLUE);
+            EndDrawing();
+            WaitTime(5);
+            break;
+        }
 
         // Render 1 frame
         BeginDrawing();
-        ClearBackground(RAYWHITE);
-        DrawRectangleRec(player->body, RED);
-        renderBullets(bullets);
-
+            ClearBackground(RAYWHITE);
+            DrawTexture(texture, 0, 0, RAYWHITE);
+            DrawRectangleRec(player->body, RED);
+            renderBullets(bullets);
+            renderEnemies(enemies);
+            DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
         EndDrawing();
+
+        frame++;
     }
+    cleanupEntities(bullets, enemies);
     CloseWindow();
     MemFree(player);
     return 0;
@@ -131,7 +174,7 @@ Entity *initPlayer()
     player->body.x = screenWidth / 2;
     player->body.y = screenHeight / 2;
 
-    player->speed = 10;
+    player->speed = 1;
 
     return player;
 }
@@ -193,16 +236,17 @@ void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
                 return;
             }
 
-            //Setting the initial stats
+            // Setting the initial stats
             bullet->body.height = bullet->body.width = 10;
-            bullet->body.x = playerV.x;
-            bullet->body.y = playerV.y;
+            bullet->body.x = playerV.x + 5;
+            bullet->body.y = playerV.y + 5;
             bullet->speed = 8.0f;
             bullet->health = 1;
             bullet->direction = Vector2Normalize(Vector2Subtract(mouseV, playerV));
-            
-            //put bullet in bullets :)
+
+            // put bullet in bullets :)
             bullets[i] = bullet;
+            PlaySound(gunFx);
             TraceLog(LOG_INFO, "BULLET CREATED");
             return;
         }
@@ -212,43 +256,42 @@ void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
 /**
  * @brief Generate a new enemy and initialize its stats. Also generate
  * a direction vector towards the player
- * 
- * @param enemies 
+ *
+ * @param enemies
  */
-void generateNewEnemy(Entity **enemies)
+void generateNewEnemy(Entity **enemies, Vector2 playerV)
 {
     Entity *newEnemy = MemAlloc(sizeof(Entity));
     bool spaceAvail = false;
-    //check for an empty spot in enemies before anything else
-    for(int i = 0; i < MAX_ENEMIES; i++)
+    // check for an empty spot in enemies before anything else
+    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
-        if(enemies[i] == NULL) 
+        if (enemies[i] == NULL)
         {
             enemies[i] = newEnemy;
             spaceAvail = true;
             break;
         }
     }
-    if(!spaceAvail)
+    if (!spaceAvail)
     {
         TraceLog(LOG_INFO, "No space for enemy");
         MemFree(newEnemy);
         return;
     }
 
-
     newEnemy->body.height = newEnemy->body.width = 25;
-    newEnemy->speed = (float)GetRandomValue(5,25);
+    newEnemy->speed = 1;
 
-    //Determining which side of the screen the enemy will spawn from
+    // Determining which side of the screen the enemy will spawn from
     switch (GetRandomValue(0, 3))
     {
-    //UP
+    // UP
     case 0:
         newEnemy->body.x = GetRandomValue(0, screenWidth - 25);
         newEnemy->body.y = screenHeight - 25;
         break;
-    //DOWN
+    // DOWN
     case 1:
         newEnemy->body.x = GetRandomValue(0, screenWidth - 25);
         newEnemy->body.y = 0;
@@ -257,12 +300,41 @@ void generateNewEnemy(Entity **enemies)
         newEnemy->body.x = 0;
         newEnemy->body.y = GetRandomValue(0, screenHeight - 25);
         break;
-    case 3: 
+    case 3:
         newEnemy->body.x = screenWidth - 25;
-        newEnemy->body.y = GetRandomValue(0 , screenHeight - 25);
+        newEnemy->body.y = GetRandomValue(0, screenHeight - 25);
         break;
     }
 
+    // In this frame, generate a direction vector towards the player
+    newEnemy->direction = Vector2Normalize(Vector2Subtract(playerV, createVector2(newEnemy->body.x, newEnemy->body.y)));
+
+    return;
+}
+
+void updateEnemies(Entity **enemies, Vector2 playerV)
+{ // In one frame, advance the enemies towards the player.
+    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
+    { // go through every enemy
+        if (enemies[i] != NULL)
+        {//
+            enemies[i]->direction = Vector2Normalize(Vector2Subtract(playerV, createVector2(enemies[i]->body.x, enemies[i]->body.y)));
+            enemies[i]->body.y += enemies[i]->direction.y * enemies[i]->speed;
+            enemies[i]->body.x += enemies[i]->direction.x * enemies[i]->speed;
+        }
+    }
+}
+
+void renderEnemies(Entity **enemies)
+{
+    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
+    {
+        if(enemies[i] != NULL)
+        {
+            DrawRectangleRec(enemies[i]->body, GREEN);
+        }
+    }
+    
 }
 
 void updateBullets(Entity **bullets)
@@ -293,7 +365,7 @@ void renderBullets(Entity **bullets)
 void checkBulletCollisions(Entity **bullets)
 {
     for (int i = 0; i < MAX_BULLETS; i++)
-    {//one of two things happen, either it goes out of bounds , or it collides with an enemy
+    { // one of two things happen, either it goes out of bounds , or it collides with an enemy
         if (bullets[i] != NULL)
         {
             if (
@@ -306,6 +378,32 @@ void checkBulletCollisions(Entity **bullets)
                 MemFree(bullets[i]);
                 bullets[i] = NULL;
             }
+        }
+    }
+}
+
+int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int* score)
+{
+    for(int i = 0; i < CURRENT_MAX_ENEMIES; i++)
+    {
+        for(int j = 0; j < MAX_BULLETS; j++)
+        {
+            if(enemies[i] != NULL && bullets[j] != NULL)
+                if(CheckCollisionRecs(enemies[i]->body, bullets[j]->body))
+                {
+                    MemFree(bullets[j]);
+                    MemFree(enemies[i]);
+                    enemies[i] = NULL;
+                    bullets[j] = NULL;
+
+                    *score += 1;
+                }
+        }
+
+        if(enemies[i] != NULL && CheckCollisionRecs(enemies[i]->body, player->body))
+        {//The enemy collided with the player. Triggering a game over
+
+            return 1;
         }
     }
 }
