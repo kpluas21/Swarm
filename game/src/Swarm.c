@@ -190,11 +190,12 @@ int main(void)
                 generateNewEnemy(enemies, playerV);
             }
 
-            if ((frame % 300) && frame > 0)
+            if ((frame % 300 == 0) && frame > 0)
             {
                 // Frees the powerup if the player has not retrieved it in time
                 if (powerup != NULL)
-                    MemFree(powerup);
+                    MemFree(powerup
+                    );
                 powerup = generatePowerup();
             }
             // Update 1 frame
@@ -263,6 +264,7 @@ int main(void)
                 DrawRectangleRec(player->body, RED);
                 renderBullets(bullets);
                 renderEnemies(enemies);
+                if(powerup) DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
                 DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
             }
             break;
@@ -569,8 +571,44 @@ void checkBulletCollisions(Entity **bullets)
     }
 }
 
+void clearEnemies(Entity** enemies)
+{
+    for(int i = 0; i < CURRENT_MAX_ENEMIES; i++)
+    {
+        if(enemies[i] != NULL)
+        {
+            MemFree(enemies[i]);
+            enemies[i] = NULL;
+        }
+    }
+}
+
 int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp *powerup, int *score)
 {
+    //Check for powerups first, they may possibly change the state of enemies
+    if((powerup != NULL) && CheckCollisionCircleRec(powerup->position, 15, player->body))
+    {
+        
+        switch (powerup->effect)
+        {
+        case ENEMYWIPE:
+            clearEnemies(enemies);
+            break;
+        case INCREASESPEED:
+            player->speed += 0.1;
+            break;
+        case PLUS10SCORE:
+            *score += 10;
+            break;
+        case PLUS50SCORE:
+            *score += 50;
+            break;
+        default:
+            break;
+        }
+        MemFree(powerup);
+        powerup = NULL;
+    }
 
     for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
