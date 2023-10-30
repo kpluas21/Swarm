@@ -1,9 +1,7 @@
 /*******************************************************************************************
  *
- *   raylib game template
- *
  *   Swarm
- *   <Game description>
+ *   A top down shooting game featuring non-stop waves of enemies!
  *
  *   This game has been created using raylib (www.raylib.com)
  *   raylib is licensed under an unmodified zlib/libpng license (View raylib.h for details)
@@ -33,10 +31,19 @@ typedef enum GameScreen
     ENDING,
 } GameScreen;
 
+typedef enum Effect
+{
+    MAXBULLETUP = 0,
+    ENEMYWIPE,
+    INCREASESPEED,
+    PLUS10SCORE,
+    PLUS50SCORE,
+} Effect;
+
 static const int screenWidth = 1280;
 static const int screenHeight = 720;
 static const char *windowTitle = "Swarm";
-static const char *logoString = "A GAME BY\nKEVIN PLUAS";
+static const char *logoString = "A GAME BY\n\nKEVIN PLUAS";
 
 // Player Globals
 static int PLAYER_SPEED = 1;
@@ -63,15 +70,20 @@ typedef struct Entity
     Vector2 direction; // Used for the bullets to calculate their trajectory
 } Entity;
 
+typedef struct PowerUp
+{
+    Vector2 position;
+    Effect effect;
+    Color color;
+} PowerUp;
 //----------------------------------------------------------------------------------
 // Local Function Declarations
 //----------------------------------------------------------------------------------
 
-void titleScreen();
-
 Entity *initPlayer();
 Entity **initBullets();
 Entity **initEnemies();
+PowerUp *generatePowerup();
 
 void playerMovementInput(Entity *player);
 
@@ -84,7 +96,12 @@ void updateBullets(Entity **bullets);
 void renderBullets(Entity **bullets);
 void checkBulletCollisions(Entity **bullets);
 
-int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int *score);
+int checkCollisions(
+    Entity **enemies,
+    Entity **bullets,
+    Entity *player,
+    PowerUp *powerup,
+    int *score);
 
 void cleanupEntities(Entity **bullets, Entity **enemies);
 
@@ -116,6 +133,7 @@ int main(void)
     Entity *player = initPlayer();
     Entity **bullets = initBullets();
     Entity **enemies = initEnemies();
+    PowerUp *powerup = NULL;
 
     Vector2 playerV;
 
@@ -137,7 +155,7 @@ int main(void)
         break;
         case TITLE:
         {
-            if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
             {
                 currentScreen = GAMEPLAY;
             }
@@ -145,8 +163,8 @@ int main(void)
         break;
         case GAMEPLAY:
         {
-            //Pause function
-            if(IsKeyPressed(KEY_SPACE))
+            // Pause function
+            if (IsKeyPressed(KEY_SPACE))
             {
                 currentScreen = PAUSE;
                 break;
@@ -162,7 +180,6 @@ int main(void)
                 createBullet(bullets, playerV, createVector2(GetMouseX(), GetMouseY()));
             }
 
-
             if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
             { // Every ten kills will increase the max number of enemies possible on screen at
                 CURRENT_MAX_ENEMIES++;
@@ -172,13 +189,21 @@ int main(void)
             {
                 generateNewEnemy(enemies, playerV);
             }
+
+            if ((frame % 300) && frame > 0)
+            {
+                // Frees the powerup if the player has not retrieved it in time
+                if (powerup != NULL)
+                    MemFree(powerup);
+                powerup = generatePowerup();
+            }
             // Update 1 frame
             updateBullets(bullets);
             updateEnemies(enemies, playerV);
 
             // Check collisions 1 frame
             checkBulletCollisions(bullets);
-            if (checkCollisions(enemies, bullets, player, &currentScore) == 1)
+            if (checkCollisions(enemies, bullets, player, powerup, &currentScore) == 1)
             {
                 currentScreen = ENDING;
                 endingFrame = frame;
@@ -188,9 +213,9 @@ int main(void)
             frame++;
             break;
         }
-        case PAUSE: 
+        case PAUSE:
         {
-            if(IsKeyPressed(KEY_SPACE))
+            if (IsKeyPressed(KEY_SPACE))
             {
                 currentScreen = GAMEPLAY;
                 break;
@@ -200,13 +225,13 @@ int main(void)
         case ENDING:
         {
             frame++;
-            if((frame - endingFrame) >= 240)
+            if ((frame - endingFrame) >= 240)
             {
-                //Goes straight to cleanup, terminating the program.
+                // Goes straight to cleanup, terminating the program.
                 goto EXIT;
             }
         }
-            break;
+        break;
         default:
             break;
         }
@@ -226,12 +251,12 @@ int main(void)
             break;
             case TITLE:
             {
-                char*  title = "SWARM\n\n\n\n\n\nClick the Mouse to Begin";
+                char *title = "SWARM\n\n\n\n\n\nClick the Mouse to Begin";
                 float textWidth = MeasureText(title, 40);
                 ClearBackground(BLACK);
                 DrawText(title, (screenWidth - textWidth) / 2, screenHeight / 2, 40, WHITE);
             }
-                break;
+            break;
             case GAMEPLAY:
             {
                 DrawTexture(texture, 0, 0, RAYWHITE);
@@ -241,14 +266,14 @@ int main(void)
                 DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
             }
             break;
-            case PAUSE: 
-            {//Same as gameplay except with added faded rectangle 
+            case PAUSE:
+            { // Same as gameplay except with added faded rectangle
                 DrawTexture(texture, 0, 0, RAYWHITE);
                 DrawRectangleRec(player->body, RED);
                 renderBullets(bullets);
                 renderEnemies(enemies);
                 DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
-                DrawRectangle(0, 0, screenWidth, screenHeight, (Color) {0, 0, 0, 155});
+                DrawRectangle(0, 0, screenWidth, screenHeight, (Color){0, 0, 0, 155});
                 break;
             }
             case ENDING:
@@ -256,7 +281,7 @@ int main(void)
                 DrawTexture(texture, 0, 0, RAYWHITE);
                 DrawText(TextFormat("Game Over\n\n\n\nScore: %d", currentScore), screenWidth / 2 - 100, screenHeight / 2, 40, BLACK);
             }
-                break;
+            break;
             default:
                 break;
             }
@@ -264,7 +289,6 @@ int main(void)
 
         EndDrawing();
     }
-
 
 EXIT:
     // CLEAN UP
@@ -300,6 +324,47 @@ Entity *initPlayer()
     player->speed = 1;
 
     return player;
+}
+
+PowerUp *generatePowerup()
+{
+    PowerUp *powerup = MemAlloc(sizeof(PowerUp));
+    if (!powerup)
+    {
+        TraceLog(LOG_ERROR, "Error initializing powerup");
+        return NULL;
+    }
+    switch (GetRandomValue(MAXBULLETUP, PLUS50SCORE))
+    {
+    case MAXBULLETUP:
+        powerup->color = BLUE;
+        powerup->effect = MAXBULLETUP;
+        break;
+    case ENEMYWIPE:
+        powerup->color = PURPLE;
+        powerup->effect = ENEMYWIPE;
+        break;
+    case INCREASESPEED:
+        powerup->color = GRAY;
+        powerup->effect = INCREASESPEED;
+        break;
+    case PLUS10SCORE:
+        powerup->color = DARKGREEN;
+        powerup->effect = PLUS10SCORE;
+        break;
+    case PLUS50SCORE:
+        powerup->color = GOLD;
+        powerup->effect = PLUS50SCORE;
+        break;
+    default:
+        TraceLog(LOG_INFO, "This shouldn't happen!");
+        break;
+    }
+
+    powerup->position.x = GetRandomValue(50, screenWidth - 50);
+    powerup->position.y = GetRandomValue(50, screenHeight - 50);
+
+    return powerup;
 }
 
 Entity **initBullets()
@@ -504,8 +569,9 @@ void checkBulletCollisions(Entity **bullets)
     }
 }
 
-int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, int *score)
+int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp *powerup, int *score)
 {
+
     for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
         for (int j = 0; j < MAX_BULLETS; j++)
