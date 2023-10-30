@@ -29,7 +29,8 @@ typedef enum GameScreen
     LOGO = 0,
     TITLE,
     GAMEPLAY,
-    ENDING
+    PAUSE,
+    ENDING,
 } GameScreen;
 
 static const int screenWidth = 1280;
@@ -144,6 +145,12 @@ int main(void)
         break;
         case GAMEPLAY:
         {
+            //Pause function
+            if(IsKeyPressed(KEY_SPACE))
+            {
+                currentScreen = PAUSE;
+                break;
+            }
             // Input 1 frame
             playerMovementInput(player);
 
@@ -154,6 +161,8 @@ int main(void)
             {
                 createBullet(bullets, playerV, createVector2(GetMouseX(), GetMouseY()));
             }
+
+
             if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
             { // Every ten kills will increase the max number of enemies possible on screen at
                 CURRENT_MAX_ENEMIES++;
@@ -177,8 +186,17 @@ int main(void)
             }
 
             frame++;
+            break;
         }
-        break;
+        case PAUSE: 
+        {
+            if(IsKeyPressed(KEY_SPACE))
+            {
+                currentScreen = GAMEPLAY;
+                break;
+            }
+            break;
+        }
         case ENDING:
         {
             frame++;
@@ -223,6 +241,16 @@ int main(void)
                 DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
             }
             break;
+            case PAUSE: 
+            {//Same as gameplay except with added faded rectangle 
+                DrawTexture(texture, 0, 0, RAYWHITE);
+                DrawRectangleRec(player->body, RED);
+                renderBullets(bullets);
+                renderEnemies(enemies);
+                DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
+                DrawRectangle(0, 0, screenWidth, screenHeight, (Color) {0, 0, 0, 155});
+                break;
+            }
             case ENDING:
             {
                 DrawTexture(texture, 0, 0, RAYWHITE);
