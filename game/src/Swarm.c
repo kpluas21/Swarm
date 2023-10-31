@@ -194,8 +194,7 @@ int main(void)
             {
                 // Frees the powerup if the player has not retrieved it in time
                 if (powerup != NULL)
-                    MemFree(powerup
-                    );
+                    MemFree(powerup);
                 powerup = generatePowerup();
             }
             // Update 1 frame
