@@ -30,6 +30,11 @@ int checkBulletEnemyCollision(Entity **bullets, Entity **enemies);
 int checkBulletOutOfBounds(Entity** bullets);
 
 
+//********************************
+//
+// Function Definitions
+//
+//********************************
 
 int checkPlayerEnemyCollision(Entity *player, Entity **enemies)
 {
@@ -46,6 +51,10 @@ int checkPlayerEnemyCollision(Entity *player, Entity **enemies)
 
 int checkPlayerPowerupCollision(Entity *player, PowerUp *powerup)
 {
+    if(powerup != NULL && CheckCollisionCircleRec(powerup->position, 15, player->body))
+    {
+        return 1; //Player touched a powerup
+    }
     return 0;
 }
 
@@ -58,7 +67,7 @@ int checkBulletEnemyCollision(Entity **bullets, Entity **enemies)
             if((enemies[i] != NULL && bullets[j] != NULL) &&
             CheckCollisionRecs(enemies[i]->body, bullets[j]->body))
             {
-                
+                //TODO: Implement this 
             }
         }
     }
@@ -67,7 +76,13 @@ int checkBulletEnemyCollision(Entity **bullets, Entity **enemies)
 
 int checkBulletOutOfBounds(Entity **bullets)
 {
-    return 0;
+    for(int i = 0; i < MAX_BULLETS; i++)
+    {
+        if(bullets[i] != NULL)
+        {
+            
+        }
+    }
 }
 
 #endif //_COLLISIONS_H

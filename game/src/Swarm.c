@@ -49,8 +49,11 @@ static const char *logoString = "A GAME BY\n\nKEVIN PLUAS";
 static int PLAYER_SPEED = 1;
 
 static const int MAX_ENEMIES = 50; // The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
-static const int MAX_BULLETS = 1;
-static int CURRENT_MAX_ENEMIES = 5; // The current capacity. Used for all the other loops.
+static const int MAX_BULLETS = 10;
+static int CURRENT_MAX_BULLETS = 1;
+static int CURRENT_MAX_ENEMIES = 1; // The current capacity. Used for all the other loops.
+static int currentScore = 0;
+
 static Sound gunFx;
 static Image floorBackground;
 
@@ -68,6 +71,7 @@ typedef struct Entity
     float speed;
     struct Rectangle body;
     Vector2 direction; // Used for the bullets to calculate their trajectory
+    int health;
 } Entity;
 
 typedef struct PowerUp
@@ -75,6 +79,7 @@ typedef struct PowerUp
     Vector2 position;
     Effect effect;
     Color color;
+    bool isActive;
 } PowerUp;
 //----------------------------------------------------------------------------------
 // Local Function Declarations
@@ -94,6 +99,9 @@ void renderEnemies(Entity **enemies);
 
 void updateBullets(Entity **bullets);
 void renderBullets(Entity **bullets);
+
+void renderPowerup(PowerUp *powerup);
+void changePowerup(PowerUp *powerup);
 void checkBulletCollisions(Entity **bullets);
 
 int checkCollisions(
@@ -127,13 +135,13 @@ int main(void)
     int frame = 0;
     int endingFrame;
     int previousScore = 0;
-    int currentScore = 0;
+    int enemyTimer = 50;
 
     // Entity initialization
     Entity *player = initPlayer();
     Entity **bullets = initBullets();
     Entity **enemies = initEnemies();
-    PowerUp *powerup = NULL;
+    PowerUp *powerup = generatePowerup();
 
     Vector2 playerV;
 
@@ -183,19 +191,27 @@ int main(void)
             if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
             { // Every ten kills will increase the max number of enemies possible on screen at
                 CURRENT_MAX_ENEMIES++;
+                enemyTimer--;
                 previousScore = currentScore;
             }
-            if (frame % 30 == 0)
-            {
+            if (frame % enemyTimer == 0)
+            { // every 100 frames, create an enemy
                 generateNewEnemy(enemies, playerV);
             }
 
             if ((frame % 300 == 0) && frame > 0)
             {
-                // Frees the powerup if the player has not retrieved it in time
-                if (powerup != NULL)
-                    MemFree(powerup);
-                powerup = generatePowerup();
+                // If the powerup is still on screen and has not been grabbed, shuffle its
+                // effect and position
+                if (powerup->isActive)
+                { // Change the values
+                    changePowerup(powerup);
+                }
+                else
+                { // if the powerup is NOT active and the 300th frame has passed, make it active again
+                    powerup->isActive = true;
+                    changePowerup(powerup);
+                }
             }
             // Update 1 frame
             updateBullets(bullets);
@@ -263,7 +279,7 @@ int main(void)
                 DrawRectangleRec(player->body, RED);
                 renderBullets(bullets);
                 renderEnemies(enemies);
-                if(powerup) DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
+                renderPowerup(powerup);
                 DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
             }
             break;
@@ -273,6 +289,7 @@ int main(void)
                 DrawRectangleRec(player->body, RED);
                 renderBullets(bullets);
                 renderEnemies(enemies);
+                renderPowerup(powerup);
                 DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
                 DrawRectangle(0, 0, screenWidth, screenHeight, (Color){0, 0, 0, 155});
                 break;
@@ -294,6 +311,7 @@ int main(void)
 EXIT:
     // CLEAN UP
     cleanupEntities(bullets, enemies);
+    MemFree(powerup);
     MemFree(enemies);
     MemFree(bullets);
     MemFree(player);
@@ -322,50 +340,52 @@ Entity *initPlayer()
     player->body.x = screenWidth / 2;
     player->body.y = screenHeight / 2;
 
-    player->speed = 1;
+    player->speed = 5;
 
     return player;
 }
 
 PowerUp *generatePowerup()
-{
-    PowerUp *powerup = MemAlloc(sizeof(PowerUp));
-    if (!powerup)
+{ // This should only be called once when the game is initialized.
+    PowerUp *newPowerup = MemAlloc(sizeof(PowerUp));
+    if (newPowerup == NULL)
     {
         TraceLog(LOG_ERROR, "Error initializing powerup");
         return NULL;
     }
+
     switch (GetRandomValue(MAXBULLETUP, PLUS50SCORE))
     {
     case MAXBULLETUP:
-        powerup->color = BLUE;
-        powerup->effect = MAXBULLETUP;
+        newPowerup->color = BLUE;
+        newPowerup->effect = MAXBULLETUP;
         break;
     case ENEMYWIPE:
-        powerup->color = PURPLE;
-        powerup->effect = ENEMYWIPE;
+        newPowerup->color = PURPLE;
+        newPowerup->effect = ENEMYWIPE;
         break;
     case INCREASESPEED:
-        powerup->color = GRAY;
-        powerup->effect = INCREASESPEED;
+        newPowerup->color = GRAY;
+        newPowerup->effect = INCREASESPEED;
         break;
     case PLUS10SCORE:
-        powerup->color = DARKGREEN;
-        powerup->effect = PLUS10SCORE;
+        newPowerup->color = DARKGREEN;
+        newPowerup->effect = PLUS10SCORE;
         break;
     case PLUS50SCORE:
-        powerup->color = GOLD;
-        powerup->effect = PLUS50SCORE;
+        newPowerup->color = GOLD;
+        newPowerup->effect = PLUS50SCORE;
         break;
     default:
         TraceLog(LOG_INFO, "This shouldn't happen!");
         break;
     }
 
-    powerup->position.x = GetRandomValue(50, screenWidth - 50);
-    powerup->position.y = GetRandomValue(50, screenHeight - 50);
+    newPowerup->position.x = GetRandomValue(50, screenWidth - 50);
+    newPowerup->position.y = GetRandomValue(50, screenHeight - 50);
+    newPowerup->isActive = true;
 
-    return powerup;
+    return newPowerup;
 }
 
 Entity **initBullets()
@@ -414,7 +434,7 @@ void playerMovementInput(Entity *player)
 
 void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
 {
-    for (int i = 0; i < MAX_BULLETS; i++)
+    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
     { // create a single bullet in the first non null space
         if (bullets[i] == NULL)
         {
@@ -470,7 +490,7 @@ void generateNewEnemy(Entity **enemies, Vector2 playerV)
     }
 
     newEnemy->body.height = newEnemy->body.width = 25;
-    newEnemy->speed = 1;
+    newEnemy->speed = GetRandomValue(1, 5);
 
     // Determining which side of the screen the enemy will spawn from
     switch (GetRandomValue(0, 3))
@@ -527,7 +547,7 @@ void renderEnemies(Entity **enemies)
 
 void updateBullets(Entity **bullets)
 {
-    for (int i = 0; i < MAX_BULLETS; i++)
+    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
     {
         if (bullets[i] != NULL)
         {
@@ -540,7 +560,7 @@ void updateBullets(Entity **bullets)
 
 void renderBullets(Entity **bullets)
 {
-    for (int i = 0; i < MAX_BULLETS; i++)
+    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
     {
         if (bullets[i] != NULL)
         {
@@ -550,9 +570,52 @@ void renderBullets(Entity **bullets)
     }
 }
 
+void renderPowerup(PowerUp *powerup)
+{
+    if (powerup->isActive)
+    {
+        TraceLog(LOG_INFO, "POWERUP RENDERED");
+        DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
+    }
+}
+
+void changePowerup(PowerUp *powerup)
+{
+    switch (GetRandomValue(MAXBULLETUP, PLUS50SCORE))
+    {
+    case MAXBULLETUP:
+        powerup->color = BLUE;
+        powerup->effect = MAXBULLETUP;
+        break;
+    case ENEMYWIPE:
+        powerup->color = PURPLE;
+        powerup->effect = ENEMYWIPE;
+        break;
+    case INCREASESPEED:
+        powerup->color = GRAY;
+        powerup->effect = INCREASESPEED;
+        break;
+    case PLUS10SCORE:
+        powerup->color = DARKGREEN;
+        powerup->effect = PLUS10SCORE;
+        break;
+    case PLUS50SCORE:
+        powerup->color = GOLD;
+        powerup->effect = PLUS50SCORE;
+        break;
+    default:
+        TraceLog(LOG_INFO, "This shouldn't happen!");
+        break;
+    }
+
+    powerup->position.x = GetRandomValue(50, screenWidth - 50);
+    powerup->position.y = GetRandomValue(50, screenHeight - 50);
+    powerup->isActive = true;
+}
+
 void checkBulletCollisions(Entity **bullets)
 {
-    for (int i = 0; i < MAX_BULLETS; i++)
+    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
     { // one of two things happen, either it goes out of bounds , or it collides with an enemy
         if (bullets[i] != NULL)
         {
@@ -570,24 +633,25 @@ void checkBulletCollisions(Entity **bullets)
     }
 }
 
-void clearEnemies(Entity** enemies)
+void clearEnemies(Entity **enemies)
 {
-    for(int i = 0; i < CURRENT_MAX_ENEMIES; i++)
+    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
-        if(enemies[i] != NULL)
+        if (enemies[i] != NULL)
         {
             MemFree(enemies[i]);
             enemies[i] = NULL;
+            currentScore++;
         }
     }
 }
 
 int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp *powerup, int *score)
 {
-    //Check for powerups first, they may possibly change the state of enemies
-    if((powerup != NULL) && CheckCollisionCircleRec(powerup->position, 15, player->body))
+    // Check for powerups first, they may possibly change the state of enemies
+
+    if (powerup->isActive && CheckCollisionCircleRec(powerup->position, 15, player->body))
     {
-        
         switch (powerup->effect)
         {
         case ENEMYWIPE:
@@ -602,16 +666,18 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
         case PLUS50SCORE:
             *score += 50;
             break;
+        case MAXBULLETUP:
+            CURRENT_MAX_BULLETS++;
+            break;
         default:
             break;
         }
-        MemFree(powerup);
-        powerup = NULL;
+        powerup->isActive = false;
     }
 
     for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
     {
-        for (int j = 0; j < MAX_BULLETS; j++)
+        for (int j = 0; j < CURRENT_MAX_BULLETS; j++)
         {
             if (enemies[i] != NULL && bullets[j] != NULL)
                 if (CheckCollisionRecs(enemies[i]->body, bullets[j]->body))
@@ -631,6 +697,7 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
             return 1;
         }
     }
+    return 0;
 }
 
 void cleanupEntities(Entity **bullets, Entity **enemies)
