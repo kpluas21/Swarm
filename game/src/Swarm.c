@@ -55,6 +55,7 @@ static int CURRENT_MAX_ENEMIES = 1; // The current capacity. Used for all the ot
 static int currentScore = 0;
 
 static Sound gunFx;
+static Sound impactFx;
 static Image floorBackground;
 
 //----------------------------------------------------------------------------------
@@ -71,7 +72,6 @@ typedef struct Entity
     float speed;
     struct Rectangle body;
     Vector2 direction; // Used for the bullets to calculate their trajectory
-    int health;
 } Entity;
 
 typedef struct PowerUp
@@ -92,17 +92,18 @@ PowerUp *generatePowerup();
 
 void playerMovementInput(Entity *player);
 
-void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV);
 void generateNewEnemy(Entity **enemies, Vector2 playerV);
 void updateEnemies(Entity **enemies, Vector2 playerV);
 void renderEnemies(Entity **enemies);
 
+void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV);
+void checkBulletCollisions(Entity **bullets);
 void updateBullets(Entity **bullets);
 void renderBullets(Entity **bullets);
 
 void renderPowerup(PowerUp *powerup);
 void changePowerup(PowerUp *powerup);
-void checkBulletCollisions(Entity **bullets);
+
 
 int checkCollisions(
     Entity **enemies,
@@ -124,9 +125,11 @@ int main(void)
     InitWindow(screenWidth, screenHeight, windowTitle);
     SetTargetFPS(60);
     InitAudioDevice();
+    Music backgroundSong = LoadMusicStream("resources/ambient.ogg");
 
     // Asset loading
     gunFx = LoadSound("resources/blaster.mp3");
+    impactFx = LoadSound("resources/impact.mp3");
     floorBackground = LoadImage("resources/ground.png");
     ImageResize(&floorBackground, screenWidth, screenHeight);
     Texture2D texture = LoadTextureFromImage(floorBackground);
@@ -147,11 +150,16 @@ int main(void)
 
     GameScreen currentScreen = LOGO;
 
+    PlayMusicStream(backgroundSong);
+
     while (!WindowShouldClose())
     {
+        UpdateMusicStream(backgroundSong);
+
         // UPDATE LOOP
         switch (currentScreen)
         {
+
         case LOGO:
         {
             frame++;
@@ -316,6 +324,8 @@ EXIT:
     MemFree(bullets);
     MemFree(player);
     UnloadSound(gunFx);
+    UnloadSound(impactFx);
+    UnloadMusicStream(backgroundSong);
     UnloadImage(floorBackground);
     UnloadTexture(texture);
     CloseAudioDevice();
@@ -686,7 +696,7 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
                     MemFree(enemies[i]);
                     enemies[i] = NULL;
                     bullets[j] = NULL;
-
+                    PlaySound(impactFx);
                     *score += 1;
                 }
         }
