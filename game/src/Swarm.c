@@ -10,8 +10,11 @@
  *
  ********************************************************************************************/
 
-#include "raylib.h"
-#include "raymath.h"
+#include "..\..\raylib\src\raylib.h"
+#include "..\..\raylib\src\raymath.h"
+
+#include "Globals.h"
+
 #include <stdlib.h>
 
 #if defined(PLATFORM_WEB)
@@ -38,25 +41,8 @@ typedef enum Effect
     INCREASESPEED,
     PLUS10SCORE,
     PLUS50SCORE,
+    HEALTHUP,
 } Effect;
-
-static const int screenWidth = 1280;
-static const int screenHeight = 720;
-static const char *windowTitle = "Swarm";
-static const char *logoString = "A GAME BY\n\nKEVIN PLUAS";
-
-// Player Globals
-static int PLAYER_SPEED = 1;
-
-static const int MAX_ENEMIES = 50; // The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
-static const int MAX_BULLETS = 10;
-static int CURRENT_MAX_BULLETS = 1;
-static int CURRENT_MAX_ENEMIES = 1; // The current capacity. Used for all the other loops.
-static int currentScore = 0;
-
-static Sound gunFx;
-static Sound impactFx;
-static Image floorBackground;
 
 //----------------------------------------------------------------------------------
 // Local Structs Declaration
@@ -104,6 +90,7 @@ void renderBullets(Entity **bullets);
 void renderPowerup(PowerUp *powerup);
 void changePowerup(PowerUp *powerup);
 
+void renderHUD(Entity *player, int frame, int currentScore);
 
 int checkCollisions(
     Entity **enemies,
@@ -112,7 +99,7 @@ int checkCollisions(
     PowerUp *powerup,
     int *score);
 
-void cleanupEntities(Entity **bullets, Entity **enemies);
+void cleanupEntities(Entity **bullets, Entity **enemies, Entity * player, PowerUp *PowerUp);
 
 Vector2 createVector2(int x, int y);
 
@@ -131,8 +118,10 @@ int main(void)
     gunFx = LoadSound("resources/blaster.mp3");
     impactFx = LoadSound("resources/impact.mp3");
     floorBackground = LoadImage("resources/ground.png");
+    healthTic = LoadImage("resources/health_tic.png");
     ImageResize(&floorBackground, screenWidth, screenHeight);
     Texture2D texture = LoadTextureFromImage(floorBackground);
+    healthTexture = LoadTextureFromImage(healthTic);
 
     // Variables
     int frame = 0;
@@ -227,7 +216,8 @@ int main(void)
 
             // Check collisions 1 frame
             checkBulletCollisions(bullets);
-            if (checkCollisions(enemies, bullets, player, powerup, &currentScore) == 1)
+            player->health -= checkCollisions(enemies, bullets, player, powerup, &currentScore);
+            if (player->health == 0)
             {
                 currentScreen = ENDING;
                 endingFrame = frame;
@@ -248,12 +238,15 @@ int main(void)
         }
         case ENDING:
         {
-            frame++;
-            if ((frame - endingFrame) >= 240)
+            if(IsKeyPressed(KEY_Y))
             {
-                // Goes straight to cleanup, terminating the program.
+                //Restart game
+            }
+            else if(IsKeyPressed(KEY_N))
+            {
                 goto EXIT;
             }
+            break;
         }
         break;
         default:
@@ -288,7 +281,7 @@ int main(void)
                 renderBullets(bullets);
                 renderEnemies(enemies);
                 renderPowerup(powerup);
-                DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
+                renderHUD(player, frame, currentScore);
             }
             break;
             case PAUSE:
@@ -298,18 +291,21 @@ int main(void)
                 renderBullets(bullets);
                 renderEnemies(enemies);
                 renderPowerup(powerup);
-                DrawText(TextFormat("Score: %d\tFrame: %d", currentScore, frame), screenWidth / 2 - 50, screenHeight - 25, 15, BLUE);
+                renderHUD(player, frame, currentScore);
                 DrawRectangle(0, 0, screenWidth, screenHeight, (Color){0, 0, 0, 155});
-                break;
             }
+            break;
             case ENDING:
             {
                 DrawTexture(texture, 0, 0, RAYWHITE);
                 DrawText(TextFormat("Game Over\n\n\n\nScore: %d", currentScore), screenWidth / 2 - 100, screenHeight / 2, 40, BLACK);
+                DrawText(TextFormat("Try again? Y/N"), screenWidth / 2 - 100, screenHeight / 2 - 150, 40, BLACK);
             }
             break;
             default:
-                break;
+            {
+            }
+            break;
             }
         }
 
@@ -318,16 +314,14 @@ int main(void)
 
 EXIT:
     // CLEAN UP
-    cleanupEntities(bullets, enemies);
-    MemFree(powerup);
-    MemFree(enemies);
-    MemFree(bullets);
-    MemFree(player);
+    cleanupEntities(bullets, enemies, player, powerup);
     UnloadSound(gunFx);
     UnloadSound(impactFx);
     UnloadMusicStream(backgroundSong);
     UnloadImage(floorBackground);
     UnloadTexture(texture);
+    UnloadImage(healthTic);
+    UnloadTexture(healthTexture);
     CloseAudioDevice();
     CloseWindow();
     return 0;
@@ -350,7 +344,8 @@ Entity *initPlayer()
     player->body.x = screenWidth / 2;
     player->body.y = screenHeight / 2;
 
-    player->speed = 5;
+    player->health = 3;
+    player->speed = 2.5;
 
     return player;
 }
@@ -364,7 +359,7 @@ PowerUp *generatePowerup()
         return NULL;
     }
 
-    switch (GetRandomValue(MAXBULLETUP, PLUS50SCORE))
+    switch (GetRandomValue(MAXBULLETUP, HEALTHUP))
     {
     case MAXBULLETUP:
         newPowerup->color = BLUE;
@@ -386,6 +381,9 @@ PowerUp *generatePowerup()
         newPowerup->color = GOLD;
         newPowerup->effect = PLUS50SCORE;
         break;
+    case HEALTHUP:
+        newPowerup->color = RED;
+        newPowerup->effect = HEALTHUP;
     default:
         TraceLog(LOG_INFO, "This shouldn't happen!");
         break;
@@ -466,7 +464,7 @@ void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
             // put bullet in bullets :)
             bullets[i] = bullet;
             PlaySound(gunFx);
-            TraceLog(LOG_INFO, "BULLET CREATED");
+            // TraceLog(LOG_INFO, "BULLET CREATED");
             return;
         }
     }
@@ -584,7 +582,7 @@ void renderPowerup(PowerUp *powerup)
 {
     if (powerup->isActive)
     {
-        TraceLog(LOG_INFO, "POWERUP RENDERED");
+        // TraceLog(LOG_INFO, "POWERUP RENDERED");
         DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
     }
 }
@@ -621,6 +619,17 @@ void changePowerup(PowerUp *powerup)
     powerup->position.x = GetRandomValue(50, screenWidth - 50);
     powerup->position.y = GetRandomValue(50, screenHeight - 50);
     powerup->isActive = true;
+}
+
+void renderHUD(Entity *player, int frame, int currentScore)
+{
+    for(int i = 0; i < player->health; i++)
+    {
+        DrawTextureEx(healthTexture, (Vector2){i * 30, 50}, 0.0, 5.0, WHITE);
+    }
+    DrawText(TextFormat("Score: %d\tFrame: %d\tPlayer Speed: %.1f\t Max Bullets: %d", 
+    currentScore, frame, player->speed, CURRENT_MAX_BULLETS), screenWidth / 2 - 100, screenHeight - 25, 15, BLUE);
+
 }
 
 void checkBulletCollisions(Entity **bullets)
@@ -668,7 +677,7 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
             clearEnemies(enemies);
             break;
         case INCREASESPEED:
-            player->speed += 0.1;
+            player->speed += 0.5;
             break;
         case PLUS10SCORE:
             *score += 10;
@@ -678,6 +687,9 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
             break;
         case MAXBULLETUP:
             CURRENT_MAX_BULLETS++;
+            break;
+        case HEALTHUP:
+            player->health++;
             break;
         default:
             break;
@@ -703,14 +715,16 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
 
         if (enemies[i] != NULL && CheckCollisionRecs(enemies[i]->body, player->body))
         { // The enemy collided with the player. Triggering a game over
-
+            MemFree(enemies[i]);
+            enemies[i] = NULL;
+            PlaySound(impactFx);
             return 1;
         }
     }
     return 0;
 }
 
-void cleanupEntities(Entity **bullets, Entity **enemies)
+void cleanupEntities(Entity **bullets, Entity **enemies, Entity * player, PowerUp *powerup)
 {
     for (int i = 0; i < MAX_BULLETS; i++)
     {
@@ -726,6 +740,11 @@ void cleanupEntities(Entity **bullets, Entity **enemies)
             MemFree(enemies[i]);
         }
     }
+
+    MemFree(bullets);
+    MemFree(enemies);
+    MemFree(player);
+    MemFree(powerup);
 }
 
 Vector2 createVector2(int x, int y)

@@ -1,0 +1,7 @@
+{
+    "C_Cpp.default.compilerPath": "C:\\msys64\\ucrt64\\bin\\gcc.exe",
+    "files.associations": {
+        ".fantomasignore": "ignore",
+        "stdlib.h": "c"
+    }
+}
