@@ -14,6 +14,9 @@
 #include "..\..\raylib\src\raymath.h"
 
 #include "Globals.h"
+#include "Bullet.h"
+#include "Structs.h"
+#include "Enemy.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -23,71 +26,17 @@
 #endif
 
 //----------------------------------------------------------------------------------
-// Local Variables Definition (local to this module)
-//----------------------------------------------------------------------------------
-// Window Globals
-typedef enum GameScreen
-{
-    LOGO = 0,
-    TITLE,
-    GAMEPLAY,
-    PAUSE,
-    ENDING,
-} GameScreen;
-
-typedef enum Effect
-{
-    MAXBULLETUP = 0,
-    ENEMYWIPE,
-    INCREASESPEED,
-    PLUS10SCORE,
-    PLUS50SCORE,
-    HEALTHUP,
-} Effect;
-
-//----------------------------------------------------------------------------------
-// Local Structs Declaration
-//----------------------------------------------------------------------------------
-
-/**
- * @brief Everything that moves is considered an entity. This includes our player, enemies, and bullets.
- *
- */
-typedef struct Entity
-{
-    int health;
-    float speed;
-    struct Rectangle body;
-    Vector2 direction; // Used for the bullets to calculate their trajectory
-} Entity;
-
-typedef struct PowerUp
-{
-    Vector2 position;
-    Effect effect;
-    Color color;
-    bool isActive;
-} PowerUp;
-//----------------------------------------------------------------------------------
 // Local Function Declarations
 //----------------------------------------------------------------------------------
 
 Entity *initPlayer();
-Entity **initBullets();
-Entity **initEnemies();
 PowerUp *generatePowerup();
 
+void loadResources();
+void renderScreen(Entity *player, Entity **bullets, Entity **enemies, PowerUp *powerup, int frame);
+void unloadResources();
+
 void playerMovementInput(Entity *player);
-
-void generateNewEnemy(Entity **enemies, Vector2 playerV);
-void updateEnemies(Entity **enemies, Vector2 playerV);
-void renderEnemies(Entity **enemies);
-
-void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV);
-void checkBulletCollisions(Entity **bullets);
-void clearEnemies(Entity **enemies);
-void updateBullets(Entity **bullets);
-void renderBullets(Entity **bullets);
 
 void renderPowerup(PowerUp *powerup);
 void changePowerup(PowerUp *powerup);
@@ -115,20 +64,11 @@ int main(void)
     InitWindow(screenWidth, screenHeight, windowTitle);
     SetTargetFPS(60);
     InitAudioDevice();
-    Music backgroundSong = LoadMusicStream("resources/ambient.ogg");
 
-    // Asset loading
-    gunFx = LoadSound("resources/blaster.mp3");
-    impactFx = LoadSound("resources/impact.mp3");
-    floorBackground = LoadImage("resources/ground.png");
-    healthTic = LoadImage("resources/health_tic.png");
-    ImageResize(&floorBackground, screenWidth, screenHeight);
-    Texture2D texture = LoadTextureFromImage(floorBackground);
-    healthTexture = LoadTextureFromImage(healthTic);
+    loadResources();
 
     // Variables
     int frame = 0;
-    int endingFrame;
     int previousScore = 0;
     int enemyTimer = 50;
 
@@ -138,11 +78,12 @@ int main(void)
     Entity **enemies = initEnemies();
     PowerUp *powerup = generatePowerup();
 
-    Vector2 playerV;
-
     GameScreen currentScreen = LOGO;
 
     PlayMusicStream(backgroundSong);
+
+    //Cursor functions
+    HideCursor();
 
     while (!WindowShouldClose())
     {
@@ -171,6 +112,9 @@ int main(void)
         break;
         case GAMEPLAY:
         {
+            //get mouse position for the cursor
+            mousePos = GetMousePosition();
+
             // Pause function
             if (IsKeyPressed(KEY_SPACE))
             {
@@ -219,11 +163,11 @@ int main(void)
 
             // Check collisions 1 frame
             checkBulletCollisions(bullets);
+
             player->health -= checkCollisions(enemies, bullets, player, powerup, &currentScore);
             if (player->health == 0)
             {
                 currentScreen = ENDING;
-                endingFrame = frame;
             }
 
             frame++;
@@ -280,28 +224,18 @@ int main(void)
             break;
             case GAMEPLAY:
             {
-                DrawTexture(texture, 0, 0, RAYWHITE);
-                DrawRectangleRec(player->body, RED);
-                renderBullets(bullets);
-                renderEnemies(enemies);
-                renderPowerup(powerup);
-                renderHUD(player, frame, currentScore);
+                renderScreen(player, bullets, enemies, powerup, frame);
             }
             break;
             case PAUSE:
             { // Same as gameplay except with added faded rectangle
-                DrawTexture(texture, 0, 0, RAYWHITE);
-                DrawRectangleRec(player->body, RED);
-                renderBullets(bullets);
-                renderEnemies(enemies);
-                renderPowerup(powerup);
-                renderHUD(player, frame, currentScore);
+                renderScreen(player, bullets, enemies, powerup, frame);
                 DrawRectangle(0, 0, screenWidth, screenHeight, (Color){0, 0, 0, 155});
             }
             break;
             case ENDING:
             {
-                DrawTexture(texture, 0, 0, RAYWHITE);
+                DrawTexture(floorTexture, 0, 0, RAYWHITE);
                 DrawText(TextFormat("Game Over\n\n\n\nScore: %d", currentScore), screenWidth / 2 - 100, screenHeight / 2, 40, BLACK);
                 DrawText(TextFormat("Try again? Y/N"), screenWidth / 2 - 100, screenHeight / 2 - 150, 40, BLACK);
             }
@@ -319,22 +253,91 @@ int main(void)
 EXIT:
     // CLEAN UP
     cleanupEntities(bullets, enemies, player, powerup);
-    UnloadSound(gunFx);
-    UnloadSound(impactFx);
-    UnloadMusicStream(backgroundSong);
-    UnloadImage(floorBackground);
-    UnloadTexture(texture);
-    UnloadImage(healthTic);
-    UnloadTexture(healthTexture);
+    unloadResources();
     CloseAudioDevice();
     CloseWindow();
     return 0;
+}
+
+/**
+ * @brief Renders 1 frame of gameplay to the screen.
+ *
+ * @param player
+ * @param bullets
+ * @param enemies
+ * @param powerup
+ * @param frame
+ */
+void renderScreen(Entity *player, Entity **bullets, Entity **enemies, PowerUp *powerup, int frame)
+{
+    DrawTexture(floorTexture, 0, 0, RAYWHITE);
+
+    DrawRectangleRec(player->body, RED);
+    renderBullets(bullets);
+    renderEnemies(enemies);
+    renderPowerup(powerup);
+
+    DrawTextureEx(crosshairTexture, mousePos, 0.0, 3.0, WHITE);
+    renderHUD(player, frame, currentScore);
 }
 
 //----------------------------------------------------------------------------------
 // Local Function Definitions
 //----------------------------------------------------------------------------------
 
+/**
+ * @brief Loads into memory all the resources such as sounds and images.
+ *
+ */
+void loadResources()
+{
+    // Asset loading
+
+    // SOUNDS
+    gunFx = LoadSound("resources/blaster.mp3");
+    impactFx = LoadSound("resources/impact.mp3");
+    backgroundSong = LoadMusicStream("resources/ambient.ogg");
+
+    // IMAGES
+    floorBackground = LoadImage("resources/ground.png");
+    healthTic = LoadImage("resources/health_tic.png");
+    
+    ImageResize(&floorBackground, screenWidth, screenHeight);
+    
+    floorTexture = LoadTextureFromImage(floorBackground);
+    healthTexture = LoadTextureFromImage(healthTic);
+
+    crosshairImage = LoadImage("resources/crosshair.png");
+    crosshairTexture = LoadTextureFromImage(crosshairImage);
+
+    zombieSprite = LoadTexture("resources/zombie.png");
+
+
+}
+
+/**
+ * @brief Unloads all resources
+ *
+ */
+void unloadResources()
+{
+    // SOUNDS
+    UnloadSound(gunFx);
+    UnloadSound(impactFx);
+    UnloadMusicStream(backgroundSong);
+
+    // IMAGES
+    UnloadImage(floorBackground);
+    UnloadImage(healthTic);
+    UnloadTexture(floorTexture);
+    UnloadTexture(healthTexture);
+}
+
+/**
+ * @brief Initializes the player character into memory
+ *
+ * @return Entity*
+ */
 Entity *initPlayer()
 {
     Entity *player = MemAlloc(sizeof(Entity));
@@ -354,6 +357,11 @@ Entity *initPlayer()
     return player;
 }
 
+/**
+ * @brief Creates a new powerup to be rendered on-screen
+ *
+ * @return PowerUp*
+ */
 PowerUp *generatePowerup()
 { // This should only be called once when the game is initialized.
     PowerUp *newPowerup = MemAlloc(sizeof(PowerUp));
@@ -400,38 +408,6 @@ PowerUp *generatePowerup()
     return newPowerup;
 }
 
-Entity **initBullets()
-{
-    Entity **bullets = MemAlloc(sizeof(Entity) * MAX_BULLETS);
-    if (bullets == NULL)
-    {
-        TraceLog(LOG_ERROR, "Error initializing bullets");
-        return NULL;
-    }
-    for (int i = 0; i < MAX_BULLETS; i++)
-    {
-        bullets[i] = NULL;
-    }
-
-    return bullets;
-}
-
-Entity **initEnemies()
-{
-    Entity **enemies = MemAlloc(sizeof(Entity) * MAX_ENEMIES);
-    if (enemies == NULL)
-    {
-        TraceLog(LOG_ERROR, "Error initializing enemies");
-        return NULL;
-    }
-
-    for (int i = 0; i < MAX_ENEMIES; i++)
-    {
-        enemies[i] = NULL;
-    }
-    return enemies;
-}
-
 void playerMovementInput(Entity *player)
 {
     if (IsKeyDown(KEY_D) && player->body.x < screenWidth - player->body.width)
@@ -442,144 +418,6 @@ void playerMovementInput(Entity *player)
         player->body.y -= player->speed;
     if (IsKeyDown(KEY_S) && player->body.y < screenHeight - player->body.height)
         player->body.y += player->speed;
-}
-
-void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
-{
-    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
-    { // create a single bullet in the first non null space
-        if (bullets[i] == NULL)
-        {
-            Entity *bullet = MemAlloc(sizeof(Entity));
-            if (!bullet)
-            {
-                TraceLog(LOG_ERROR, "Error: Unable to create bullet");
-                return;
-            }
-
-            // Setting the initial stats
-            bullet->body.height = bullet->body.width = 10;
-            bullet->body.x = playerV.x + 5;
-            bullet->body.y = playerV.y + 5;
-            bullet->speed = 8.0f;
-            bullet->health = 1;
-            bullet->direction = Vector2Normalize(Vector2Subtract(mouseV, playerV));
-
-            // put bullet in bullets :)
-            bullets[i] = bullet;
-            PlaySound(gunFx);
-            // TraceLog(LOG_INFO, "BULLET CREATED");
-            return;
-        }
-    }
-}
-
-/**
- * @brief Generate a new enemy and initialize its stats. Also generate
- * a direction vector towards the player
- *
- * @param enemies
- */
-void generateNewEnemy(Entity **enemies, Vector2 playerV)
-{
-    Entity *newEnemy = MemAlloc(sizeof(Entity));
-    bool spaceAvail = false;
-    // check for an empty spot in enemies before anything else
-    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
-    {
-        if (enemies[i] == NULL)
-        {
-            enemies[i] = newEnemy;
-            spaceAvail = true;
-            break;
-        }
-    }
-    if (!spaceAvail)
-    {
-        TraceLog(LOG_INFO, "No space for enemy");
-        MemFree(newEnemy);
-        return;
-    }
-
-    newEnemy->body.height = newEnemy->body.width = 25;
-    newEnemy->speed = GetRandomValue(1, 5);
-
-    // Determining which side of the screen the enemy will spawn from
-    switch (GetRandomValue(0, 3))
-    {
-    // UP
-    case 0:
-        newEnemy->body.x = GetRandomValue(0, screenWidth - 25);
-        newEnemy->body.y = screenHeight - 25;
-        break;
-    // DOWN
-    case 1:
-        newEnemy->body.x = GetRandomValue(0, screenWidth - 25);
-        newEnemy->body.y = 0;
-        break;
-    case 2:
-        newEnemy->body.x = 0;
-        newEnemy->body.y = GetRandomValue(0, screenHeight - 25);
-        break;
-    case 3:
-        newEnemy->body.x = screenWidth - 25;
-        newEnemy->body.y = GetRandomValue(0, screenHeight - 25);
-        break;
-    }
-
-    // In this frame, generate a direction vector towards the player
-    newEnemy->direction = Vector2Normalize(Vector2Subtract(playerV, createVector2(newEnemy->body.x, newEnemy->body.y)));
-
-    return;
-}
-
-void updateEnemies(Entity **enemies, Vector2 playerV)
-{ // In one frame, advance the enemies towards the player.
-    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
-    { // go through every enemy
-        if (enemies[i] != NULL)
-        { //
-            enemies[i]->direction = Vector2Normalize(Vector2Subtract(playerV, createVector2(enemies[i]->body.x, enemies[i]->body.y)));
-            enemies[i]->body.y += enemies[i]->direction.y * enemies[i]->speed;
-            enemies[i]->body.x += enemies[i]->direction.x * enemies[i]->speed;
-        }
-    }
-}
-
-void renderEnemies(Entity **enemies)
-{
-    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
-    {
-        if (enemies[i] != NULL)
-        {
-            DrawRectangleRec(enemies[i]->body, GREEN);
-        }
-    }
-}
-
-void updateBullets(Entity **bullets)
-{
-    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
-    {
-        if (bullets[i] != NULL)
-        {
-            TraceLog(LOG_INFO, "BULLET UPDATED");
-            bullets[i]->body.x += bullets[i]->direction.x * bullets[i]->speed;
-            bullets[i]->body.y += bullets[i]->direction.y * bullets[i]->speed;
-        }
-    }
-}
-
-void renderBullets(Entity **bullets)
-{
-    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
-    {
-        if (bullets[i] != NULL)
-        {
-            TraceLog(LOG_INFO, "BULLET RENDERED");
-            DrawRectangleRec(bullets[i]->body, BLUE);
-        }
-    }
 }
 
 void renderPowerup(PowerUp *powerup)
@@ -638,7 +476,6 @@ void renderHUD(Entity *player, int frame, int currentScore)
 
 void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, int *prevScore)
 {
-    // TODO:FIX THIS
     MemFree(player);
     player = initPlayer();
 
@@ -652,45 +489,12 @@ void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, i
     }
 
     clearEnemies(enemies);
-    
+
     CURRENT_MAX_BULLETS = 1;
     CURRENT_MAX_ENEMIES = 1;
 
     currentScore = *prevScore = 0;
     *frame = 0;
-}
-
-void checkBulletCollisions(Entity **bullets)
-{
-    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
-    { // one of two things happen, either it goes out of bounds , or it collides with an enemy
-        if (bullets[i] != NULL)
-        {
-            if (
-                bullets[i]->body.x > screenWidth ||
-                bullets[i]->body.x < 0 ||
-                bullets[i]->body.y > screenHeight ||
-                bullets[i]->body.y < 0)
-            {
-                TraceLog(LOG_INFO, "BULLET DESTROYED");
-                MemFree(bullets[i]);
-                bullets[i] = NULL;
-            }
-        }
-    }
-}
-
-void clearEnemies(Entity **enemies)
-{
-    for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
-    {
-        if (enemies[i] != NULL)
-        {
-            MemFree(enemies[i]);
-            enemies[i] = NULL;
-            currentScore++;
-        }
-    }
 }
 
 int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp *powerup, int *score)
@@ -773,13 +577,4 @@ void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player, PowerUp
     MemFree(enemies);
     MemFree(player);
     MemFree(powerup);
-}
-
-Vector2 createVector2(int x, int y)
-{
-    Vector2 v;
-    v.x = x;
-    v.y = y;
-
-    return v;
 }
