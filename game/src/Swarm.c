@@ -16,6 +16,7 @@
 #include "Globals.h"
 
 #include <stdlib.h>
+#include <assert.h>
 
 #if defined(PLATFORM_WEB)
 #include <emscripten/emscripten.h>
@@ -84,6 +85,7 @@ void renderEnemies(Entity **enemies);
 
 void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV);
 void checkBulletCollisions(Entity **bullets);
+void clearEnemies(Entity **enemies);
 void updateBullets(Entity **bullets);
 void renderBullets(Entity **bullets);
 
@@ -91,6 +93,7 @@ void renderPowerup(PowerUp *powerup);
 void changePowerup(PowerUp *powerup);
 
 void renderHUD(Entity *player, int frame, int currentScore);
+void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, int *prevScore);
 
 int checkCollisions(
     Entity **enemies,
@@ -99,7 +102,7 @@ int checkCollisions(
     PowerUp *powerup,
     int *score);
 
-void cleanupEntities(Entity **bullets, Entity **enemies, Entity * player, PowerUp *PowerUp);
+void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player, PowerUp *PowerUp);
 
 Vector2 createVector2(int x, int y);
 
@@ -185,14 +188,14 @@ int main(void)
                 createBullet(bullets, playerV, createVector2(GetMouseX(), GetMouseY()));
             }
 
-            if ((currentScore % 10 == 0 && currentScore > 0) && currentScore != previousScore)
-            { // Every ten kills will increase the max number of enemies possible on screen at
+            if ((currentScore % 5 == 0 && currentScore > 0) && currentScore != previousScore)
+            { // Every five kills will increase the max number of enemies possible on screen at
                 CURRENT_MAX_ENEMIES++;
                 enemyTimer--;
                 previousScore = currentScore;
             }
             if (frame % enemyTimer == 0)
-            { // every 100 frames, create an enemy
+            { // every nth frame, where n is enemyTimer, create an enemy
                 generateNewEnemy(enemies, playerV);
             }
 
@@ -221,7 +224,6 @@ int main(void)
             {
                 currentScreen = ENDING;
                 endingFrame = frame;
-                break;
             }
 
             frame++;
@@ -238,11 +240,13 @@ int main(void)
         }
         case ENDING:
         {
-            if(IsKeyPressed(KEY_Y))
+            if (IsKeyPressed(KEY_Y))
             {
-                //Restart game
+                // Restart game
+                resetGame(player, bullets, enemies, &frame, &previousScore);
+                currentScreen = GAMEPLAY;
             }
-            else if(IsKeyPressed(KEY_N))
+            else if (IsKeyPressed(KEY_N))
             {
                 goto EXIT;
             }
@@ -623,13 +627,37 @@ void changePowerup(PowerUp *powerup)
 
 void renderHUD(Entity *player, int frame, int currentScore)
 {
-    for(int i = 0; i < player->health; i++)
+    for (int i = 0; i < player->health; i++)
     {
-        DrawTextureEx(healthTexture, (Vector2){i * 30, 50}, 0.0, 5.0, WHITE);
+        DrawTextureEx(healthTexture, (Vector2){i * 30, 50}, 0.0, 6.0, WHITE);
     }
-    DrawText(TextFormat("Score: %d\tFrame: %d\tPlayer Speed: %.1f\t Max Bullets: %d", 
-    currentScore, frame, player->speed, CURRENT_MAX_BULLETS), screenWidth / 2 - 100, screenHeight - 25, 15, BLUE);
+    DrawText(TextFormat("Score: %d\tFrame: %d\tPlayer Speed: %.1f\t Max Bullets: %d",
+                        currentScore, frame, player->speed, CURRENT_MAX_BULLETS),
+             screenWidth / 2 - 100, screenHeight - 25, 15, BLUE);
+}
 
+void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, int *prevScore)
+{
+    // TODO:FIX THIS
+    MemFree(player);
+    player = initPlayer();
+
+    for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
+    {
+        if (bullets[i] != NULL)
+        {
+            MemFree(bullets[i]);
+            bullets[i] = NULL;
+        }
+    }
+
+    clearEnemies(enemies);
+    
+    CURRENT_MAX_BULLETS = 1;
+    CURRENT_MAX_ENEMIES = 1;
+
+    currentScore = *prevScore = 0;
+    *frame = 0;
 }
 
 void checkBulletCollisions(Entity **bullets)
@@ -724,7 +752,7 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
     return 0;
 }
 
-void cleanupEntities(Entity **bullets, Entity **enemies, Entity * player, PowerUp *powerup)
+void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player, PowerUp *powerup)
 {
     for (int i = 0; i < MAX_BULLETS; i++)
     {
