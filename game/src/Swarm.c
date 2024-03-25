@@ -81,13 +81,13 @@ int main(void)
     GameScreen currentScreen = LOGO;
 
     PlayMusicStream(backgroundSong);
+    PlayMusicStream(introSong);
 
     //Cursor functions
     HideCursor();
 
     while (!WindowShouldClose())
     {
-        UpdateMusicStream(backgroundSong);
 
         // UPDATE LOOP
         switch (currentScreen)
@@ -95,8 +95,9 @@ int main(void)
 
         case LOGO:
         {
+            UpdateMusicStream(introSong);
             frame++;
-            if (frame > 120)
+            if (frame > 130)
             {
                 currentScreen = TITLE;
             }
@@ -112,6 +113,9 @@ int main(void)
         break;
         case GAMEPLAY:
         {
+            //Plays background theme
+            UpdateMusicStream(backgroundSong);
+            
             //get mouse position for the cursor
             mousePos = GetMousePosition();
 
@@ -296,7 +300,8 @@ void loadResources()
     // SOUNDS
     gunFx = LoadSound("resources/blaster.mp3");
     impactFx = LoadSound("resources/impact.mp3");
-    backgroundSong = LoadMusicStream("resources/ambient.ogg");
+    backgroundSong = LoadMusicStream("resources/Mars.wav");
+    introSong = LoadMusicStream("resources/intro.wav");
 
     // IMAGES
     floorBackground = LoadImage("resources/ground.png");
@@ -325,6 +330,7 @@ void unloadResources()
     UnloadSound(gunFx);
     UnloadSound(impactFx);
     UnloadMusicStream(backgroundSong);
+    UnloadMusicStream(introSong);
 
     // IMAGES
     UnloadImage(floorBackground);
@@ -465,6 +471,7 @@ void changePowerup(PowerUp *powerup)
 
 void renderHUD(Entity *player, int frame, int currentScore)
 {
+    DrawText("HEALTH", 30, 40, 20, BLUE);
     for (int i = 0; i < player->health; i++)
     {
         DrawTextureEx(healthTexture, (Vector2){i * 30, 50}, 0.0, 6.0, WHITE);

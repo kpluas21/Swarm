@@ -33,6 +33,7 @@ Sound gunFx;
 Sound impactFx;
 
 Music backgroundSong;
+Music introSong;
 
 Image floorBackground;
 Image healthTic;
