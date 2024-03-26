@@ -74,6 +74,16 @@ typedef struct PowerUp
     Effect effect;
     Color color;
     bool isActive;
+    Texture2D sprite;
 } PowerUp;
+
+typedef struct Level
+{
+    int EnemySpawnInterval;
+    int scoreReq;
+    int maxEnemies;
+    Texture2D floorTexture;
+    
+}Level;
 
 #endif

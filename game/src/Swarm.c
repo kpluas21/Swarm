@@ -37,15 +37,12 @@
 //----------------------------------------------------------------------------------
 
 Entity *initPlayer();
-PowerUp *generatePowerup();
 
 void loadResources();
 
 void updateLogo(int *frame, GameScreen *currentScreen);
-void updateTitle();
-void updateGameplay();
-void updatePause();
-void updateEnding();
+void updateGameplay(); //TODO: Implement this function
+
 
 void renderScreen(Entity *player, Entity **bullets, Entity **enemies, PowerUp *powerup, int frame);
 void renderLogo();
@@ -102,6 +99,13 @@ int main(void)
     PlayMusicStream(backgroundSong);
     PlayMusicStream(introSong);
 
+    Level levels[3] = 
+    {
+        {100, 10},
+        {50, 20},
+        {25, 30}
+    };
+
     GameScreen currentScreen = LOGO;
 
     // Cursor functions
@@ -155,11 +159,15 @@ int main(void)
             if ((currentScore % 5 == 0 && currentScore > 0) && currentScore != previousScore)
             { // Every five kills will increase the max number of enemies possible on screen at
                 CURRENT_MAX_ENEMIES++;
-                enemyTimer--;
+                ENEMY_SPAWN_INTERVAL-= 10;
                 previousScore = currentScore;
             }
-            if (frame % ENEMY_SPAWN_INTERVAL == 0)
+            if (ENEMY_SPAWN_INTERVAL > 0 && frame % ENEMY_SPAWN_INTERVAL == 0)
             { // every nth frame, where n is enemyTimer, create an enemy
+                generateNewEnemy(enemies, playerV);
+            }
+            else
+            {
                 generateNewEnemy(enemies, playerV);
             }
 
@@ -363,6 +371,12 @@ void loadResources()
 
     zombieSprite = LoadTexture("resources/zombie.png");
     playerSprite = LoadTexture("resources/player.png");
+
+    for (int i = 0; i < 6; i++)
+    {
+        powerupSprites[i] = LoadTexture(TextFormat("resources/powerup%d.png", i));
+    }
+
 }
 
 // Updates the logo screen
@@ -435,26 +449,32 @@ void changeRandomEffect(PowerUp* powerup)
     case MAXBULLETUP:
         powerup->color = BLUE;
         powerup->effect = MAXBULLETUP;
+        powerup->sprite = powerupSprites[0];
         break;
     case ENEMYWIPE:
         powerup->color = PURPLE;
         powerup->effect = ENEMYWIPE;
+        powerup->sprite = powerupSprites[1];
         break;
     case INCREASESPEED:
         powerup->color = GRAY;
         powerup->effect = INCREASESPEED;
+        powerup->sprite = powerupSprites[2];
         break;
     case PLUS10SCORE:
         powerup->color = DARKGREEN;
         powerup->effect = PLUS10SCORE;
+        powerup->sprite = powerupSprites[3];
         break;
     case PLUS50SCORE:
         powerup->color = GOLD;
         powerup->effect = PLUS50SCORE;
+        powerup->sprite = powerupSprites[4];
         break;
     case HEALTHUP:
         powerup->color = RED;
         powerup->effect = HEALTHUP;
+        powerup->sprite = powerupSprites[5];
     default:
         TraceLog(LOG_INFO, "This shouldn't happen!");
         break;
@@ -506,7 +526,8 @@ void renderPowerup(PowerUp *powerup)
     if (powerup->isActive)
     {
         // TraceLog(LOG_INFO, "POWERUP RENDERED");
-        DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
+        DrawTextureEx(powerup->sprite, powerup->position, 0.0, 3.0, WHITE);
+        DrawCircle(powerup->position.x, powerup->position.y, 15, (Color){155, 0, 0, 155});
     }
 }
 

@@ -25,7 +25,7 @@ float PLAYER_SPEED = 2.5;
 float PLAYER_WIDTH = 45;
 float PLAYER_HEIGHT = 45;
 
-const int ENEMY_SPAWN_INTERVAL = 100; //in frames
+int ENEMY_SPAWN_INTERVAL = 100; //in frames
 const int POWERUP_SPAWN_INTERVAL = 300; //in frames
 
 const int MAX_ENEMIES = 50; // The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
@@ -53,7 +53,9 @@ Texture2D crosshairTexture;
 Texture2D zombieSprite;
 Texture2D playerSprite;
 
-Vector2 createVector2(int x, int y)
+Texture2D powerupSprites[6];
+
+static inline Vector2 createVector2(int x, int y)
 {
     Vector2 v;
     v.x = x;
@@ -69,7 +71,7 @@ Vector2 createVector2(int x, int y)
  * @param target  The vector to which the angle is calculated
  * @return float  The angle in degrees
  */
-float calculateAngle(Vector2 origin, Vector2 target)
+static inline float calculateAngle(Vector2 origin, Vector2 target)
 {
     return atan2f(target.y - origin.y, target.x - origin.x) * RAD2DEG;
 }
