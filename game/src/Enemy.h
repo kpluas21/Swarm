@@ -100,6 +100,12 @@ void generateNewEnemy(Entity **enemies, Vector2 playerV)
     return;
 }
 
+/**
+ * @brief Update the enemies' position based on the player's position
+ * 
+ * @param enemies 
+ * @param playerV 
+ */
 void updateEnemies(Entity **enemies, Vector2 playerV)
 { // In one frame, advance the enemies towards the player.
     for (int i = 0; i < CURRENT_MAX_ENEMIES; i++)
@@ -113,11 +119,12 @@ void updateEnemies(Entity **enemies, Vector2 playerV)
     }
 }
 
-float calculateAngle(Vector2 origin, Vector2 target)
-{
-    return atan2f(target.y - origin.y, target.x - origin.x) * RAD2DEG;
-}
 
+/**
+ * @brief Render the enemies on screen
+ * 
+ * @param enemies 
+ */
 void renderEnemies(Entity **enemies)
 {
     Vector2 enemyV;
@@ -129,7 +136,10 @@ void renderEnemies(Entity **enemies)
             enemyV = createVector2(enemies[i]->body.x, enemies[i]->body.y);
             rotationCenter = (Vector2){enemies[i]->body.x + enemies[i]->body.width, enemies[i]->body.height + enemies[i]->body.y };
 
-            DrawRectangle(enemies[i]->body.x, enemies[i]->body.y, enemies[i]->body.width, enemies[i]->body.width, (Color){155, 0, 0, 155});
+            #ifdef SWARM_DEBUG
+                //Show hitboxes
+                DrawRectangle(enemies[i]->body.x, enemies[i]->body.y, enemies[i]->body.width, enemies[i]->body.width, (Color){155, 0, 0, 155});
+            #endif
             DrawTexturePro(enemies[i]->sprite,
                            (Rectangle){0, 0, zombieSprite.width, zombieSprite.height},
                            (Rectangle){rotationCenter.x - enemies[i]->sprite.width / 2, rotationCenter.y - enemies[i]->sprite.height / 2, zombieSprite.width, zombieSprite.height},
@@ -151,5 +161,4 @@ void clearEnemies(Entity **enemies)
         }
     }
 }
-
 #endif

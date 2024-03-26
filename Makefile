@@ -10,33 +10,33 @@ endif
 
 ifeq ($(config),debug_x64)
   raylib_config = debug_x64
-  TopDownShooter_config = debug_x64
+  Swarm_config = debug_x64
 
 else ifeq ($(config),debug_x86)
   raylib_config = debug_x86
-  TopDownShooter_config = debug_x86
+  Swarm_config = debug_x86
 
 else ifeq ($(config),debug_arm64)
   raylib_config = debug_arm64
-  TopDownShooter_config = debug_arm64
+  Swarm_config = debug_arm64
 
 else ifeq ($(config),release_x64)
   raylib_config = release_x64
-  TopDownShooter_config = release_x64
+  Swarm_config = release_x64
 
 else ifeq ($(config),release_x86)
   raylib_config = release_x86
-  TopDownShooter_config = release_x86
+  Swarm_config = release_x86
 
 else ifeq ($(config),release_arm64)
   raylib_config = release_arm64
-  TopDownShooter_config = release_arm64
+  Swarm_config = release_arm64
 
 else
   $(error "invalid configuration $(config)")
 endif
 
-PROJECTS := raylib TopDownShooter
+PROJECTS := raylib Swarm
 
 .PHONY: all clean help $(PROJECTS) 
 
@@ -48,15 +48,15 @@ ifneq (,$(raylib_config))
 	@${MAKE} --no-print-directory -C _build -f raylib.make config=$(raylib_config)
 endif
 
-TopDownShooter: raylib
-ifneq (,$(TopDownShooter_config))
-	@echo "==== Building TopDownShooter ($(TopDownShooter_config)) ===="
-	@${MAKE} --no-print-directory -C _build -f TopDownShooter.make config=$(TopDownShooter_config)
+Swarm: raylib
+ifneq (,$(Swarm_config))
+	@echo "==== Building Swarm ($(Swarm_config)) ===="
+	@${MAKE} --no-print-directory -C _build -f Swarm.make config=$(Swarm_config)
 endif
 
 clean:
 	@${MAKE} --no-print-directory -C _build -f raylib.make clean
-	@${MAKE} --no-print-directory -C _build -f TopDownShooter.make clean
+	@${MAKE} --no-print-directory -C _build -f Swarm.make clean
 
 help:
 	@echo "Usage: make [config=name] [target]"
@@ -73,6 +73,6 @@ help:
 	@echo "   all (default)"
 	@echo "   clean"
 	@echo "   raylib"
-	@echo "   TopDownShooter"
+	@echo "   Swarm"
 	@echo ""
 	@echo "For more information, see https://github.com/premake/premake-core/wiki"

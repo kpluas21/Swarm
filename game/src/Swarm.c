@@ -10,8 +10,15 @@
  *
  ********************************************************************************************/
 
+#ifdef __unix__
+#include "raylib.h"
+#include "raymath.h"
+#endif
+
+#ifdef defined(_WIN32) || defined(WIN32)
 #include "..\..\raylib\src\raylib.h"
 #include "..\..\raylib\src\raymath.h"
+#endif
 
 #include "Globals.h"
 #include "Bullet.h"
@@ -33,13 +40,26 @@ Entity *initPlayer();
 PowerUp *generatePowerup();
 
 void loadResources();
+
+void updateLogo(int *frame, GameScreen *currentScreen);
+void updateTitle();
+void updateGameplay();
+void updatePause();
+void updateEnding();
+
 void renderScreen(Entity *player, Entity **bullets, Entity **enemies, PowerUp *powerup, int frame);
+void renderLogo();
+void renderTitle();
+void renderEnding();
 void unloadResources();
 
-void playerMovementInput(Entity *player);
 
+void playerMovementInput(Entity *player);
+void renderPlayer(Entity *player);
+
+void createPowerup(PowerUp *powerup);
+void changeRandomEffect(PowerUp *powerup);
 void renderPowerup(PowerUp *powerup);
-void changePowerup(PowerUp *powerup);
 
 void renderHUD(Entity *player, int frame, int currentScore);
 void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, int *prevScore);
@@ -51,7 +71,7 @@ int checkCollisions(
     PowerUp *powerup,
     int *score);
 
-void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player, PowerUp *PowerUp);
+void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player);
 
 Vector2 createVector2(int x, int y);
 
@@ -76,14 +96,15 @@ int main(void)
     Entity *player = initPlayer();
     Entity **bullets = initBullets();
     Entity **enemies = initEnemies();
-    PowerUp *powerup = generatePowerup();
-
-    GameScreen currentScreen = LOGO;
+    PowerUp powerup;
+    createPowerup(&powerup);
 
     PlayMusicStream(backgroundSong);
     PlayMusicStream(introSong);
 
-    //Cursor functions
+    GameScreen currentScreen = LOGO;
+
+    // Cursor functions
     HideCursor();
 
     while (!WindowShouldClose())
@@ -95,12 +116,7 @@ int main(void)
 
         case LOGO:
         {
-            UpdateMusicStream(introSong);
-            frame++;
-            if (frame > 130)
-            {
-                currentScreen = TITLE;
-            }
+            updateLogo(&frame, &currentScreen);
         }
         break;
         case TITLE:
@@ -113,10 +129,10 @@ int main(void)
         break;
         case GAMEPLAY:
         {
-            //Plays background theme
+            // Plays background theme
             UpdateMusicStream(backgroundSong);
-            
-            //get mouse position for the cursor
+
+            // get mouse position for the cursor
             mousePos = GetMousePosition();
 
             // Pause function
@@ -142,23 +158,23 @@ int main(void)
                 enemyTimer--;
                 previousScore = currentScore;
             }
-            if (frame % enemyTimer == 0)
+            if (frame % ENEMY_SPAWN_INTERVAL == 0)
             { // every nth frame, where n is enemyTimer, create an enemy
                 generateNewEnemy(enemies, playerV);
             }
 
-            if ((frame % 300 == 0) && frame > 0)
+            if ((frame % POWERUP_SPAWN_INTERVAL == 0) && frame > 0)
             {
                 // If the powerup is still on screen and has not been grabbed, shuffle its
                 // effect and position
-                if (powerup->isActive)
+                if (powerup.isActive)
                 { // Change the values
-                    changePowerup(powerup);
+                    createPowerup(&powerup);
                 }
                 else
                 { // if the powerup is NOT active and the 300th frame has passed, make it active again
-                    powerup->isActive = true;
-                    changePowerup(powerup);
+                    powerup.isActive = true;
+                    createPowerup(&powerup);
                 }
             }
             // Update 1 frame
@@ -168,7 +184,7 @@ int main(void)
             // Check collisions 1 frame
             checkBulletCollisions(bullets);
 
-            player->health -= checkCollisions(enemies, bullets, player, powerup, &currentScore);
+            player->health -= checkCollisions(enemies, bullets, player, &powerup, &currentScore);
             if (player->health == 0)
             {
                 currentScreen = ENDING;
@@ -182,7 +198,6 @@ int main(void)
             if (IsKeyPressed(KEY_SPACE))
             {
                 currentScreen = GAMEPLAY;
-                break;
             }
             break;
         }
@@ -213,37 +228,38 @@ int main(void)
             {
             case LOGO:
             {
-                float textWidth = MeasureText(logoString, 25);
-                ClearBackground(BLACK);
-                DrawText(logoString, (screenWidth - textWidth) / 2, screenHeight / 2, 25, WHITE);
+                renderLogo();
             }
             break;
+
             case TITLE:
             {
-                char *title = "SWARM\n\n\n\n\n\nClick the Mouse to Begin";
-                float textWidth = MeasureText(title, 40);
-                ClearBackground(BLACK);
-                DrawText(title, (screenWidth - textWidth) / 2, screenHeight / 2, 40, WHITE);
+                renderTitle();
             }
             break;
+
             case GAMEPLAY:
             {
-                renderScreen(player, bullets, enemies, powerup, frame);
+                renderScreen(player, bullets, enemies, &powerup, frame);
+                renderHUD(player, frame, currentScore);
             }
             break;
+
             case PAUSE:
             { // Same as gameplay except with added faded rectangle
-                renderScreen(player, bullets, enemies, powerup, frame);
+                renderScreen(player, bullets, enemies, &powerup, frame);
+                renderHUD(player, frame, currentScore);
+
                 DrawRectangle(0, 0, screenWidth, screenHeight, (Color){0, 0, 0, 155});
             }
             break;
+
             case ENDING:
             {
-                DrawTexture(floorTexture, 0, 0, RAYWHITE);
-                DrawText(TextFormat("Game Over\n\n\n\nScore: %d", currentScore), screenWidth / 2 - 100, screenHeight / 2, 40, BLACK);
-                DrawText(TextFormat("Try again? Y/N"), screenWidth / 2 - 100, screenHeight / 2 - 150, 40, BLACK);
+                renderEnding();
             }
             break;
+
             default:
             {
             }
@@ -256,11 +272,37 @@ int main(void)
 
 EXIT:
     // CLEAN UP
-    cleanupEntities(bullets, enemies, player, powerup);
+    cleanupEntities(bullets, enemies, player);
     unloadResources();
     CloseAudioDevice();
     CloseWindow();
     return 0;
+}
+
+//----------------------------------------------------------------------------------
+// Renders the ending screen
+void renderEnding()
+{
+    DrawTexture(floorTexture, 0, 0, RAYWHITE);
+    DrawText(TextFormat("Game Over\n\n\n\nScore: %d", currentScore), screenWidth / 2 - 100, screenHeight / 2, 40, BLACK);
+    DrawText(TextFormat("Try again? Y/N"), screenWidth / 2 - 100, screenHeight / 2 - 150, 40, BLACK);
+}
+
+// Renders the title screen
+void renderTitle()
+{
+    char *title = "SWARM\n\n\n\n\n\nClick the Mouse to Begin";
+    float textWidth = MeasureText(title, 40);
+    ClearBackground(BLACK);
+    DrawText(title, (screenWidth - textWidth) / 2, screenHeight / 2, 40, WHITE);
+}
+
+// Renders the logo screen
+void renderLogo()
+{
+    float textWidth = MeasureText(logoString, 25);
+    ClearBackground(BLACK);
+    DrawText(logoString, (screenWidth - textWidth) / 2, screenHeight / 2, 25, WHITE);
 }
 
 /**
@@ -274,15 +316,19 @@ EXIT:
  */
 void renderScreen(Entity *player, Entity **bullets, Entity **enemies, PowerUp *powerup, int frame)
 {
+    if (player == NULL || bullets == NULL || enemies == NULL || powerup == NULL)
+    {
+        TraceLog(LOG_ERROR, "One of the entities is NULL");
+        return;
+    }
     DrawTexture(floorTexture, 0, 0, RAYWHITE);
 
-    DrawRectangleRec(player->body, RED);
+    renderPlayer(player);
     renderBullets(bullets);
     renderEnemies(enemies);
     renderPowerup(powerup);
 
     DrawTextureEx(crosshairTexture, mousePos, 0.0, 3.0, WHITE);
-    renderHUD(player, frame, currentScore);
 }
 
 //----------------------------------------------------------------------------------
@@ -306,9 +352,9 @@ void loadResources()
     // IMAGES
     floorBackground = LoadImage("resources/ground.png");
     healthTic = LoadImage("resources/health_tic.png");
-    
+
     ImageResize(&floorBackground, screenWidth, screenHeight);
-    
+
     floorTexture = LoadTextureFromImage(floorBackground);
     healthTexture = LoadTextureFromImage(healthTic);
 
@@ -316,8 +362,18 @@ void loadResources()
     crosshairTexture = LoadTextureFromImage(crosshairImage);
 
     zombieSprite = LoadTexture("resources/zombie.png");
+    playerSprite = LoadTexture("resources/player.png");
+}
 
-
+// Updates the logo screen
+void updateLogo(int *frame, GameScreen *currentScreen)
+{
+    UpdateMusicStream(introSong);
+    (*frame)++;
+    if (*frame > 130)
+    {
+        *currentScreen = TITLE;
+    }
 }
 
 /**
@@ -353,91 +409,28 @@ Entity *initPlayer()
         return NULL;
     }
 
-    player->body.height = player->body.width = 25;
+    player->body.height = PLAYER_HEIGHT;
+    player->body.width = PLAYER_WIDTH;
     player->body.x = screenWidth / 2;
     player->body.y = screenHeight / 2;
 
-    player->health = 3;
-    player->speed = 2.5;
+    player->health = PLAYER_HEALTH;
+    player->speed = PLAYER_SPEED;
+    player->sprite = playerSprite;
 
     return player;
 }
 
-/**
- * @brief Creates a new powerup to be rendered on-screen
- *
- * @return PowerUp*
- */
-PowerUp *generatePowerup()
-{ // This should only be called once when the game is initialized.
-    PowerUp *newPowerup = MemAlloc(sizeof(PowerUp));
-    if (newPowerup == NULL)
-    {
-        TraceLog(LOG_ERROR, "Error initializing powerup");
-        return NULL;
-    }
+// Common code to create a powerup
+void createPowerup(PowerUp *powerup)
+{
+    powerup->isActive = true;
+    changeRandomEffect(powerup);
+}
 
+void changeRandomEffect(PowerUp* powerup)
+{
     switch (GetRandomValue(MAXBULLETUP, HEALTHUP))
-    {
-    case MAXBULLETUP:
-        newPowerup->color = BLUE;
-        newPowerup->effect = MAXBULLETUP;
-        break;
-    case ENEMYWIPE:
-        newPowerup->color = PURPLE;
-        newPowerup->effect = ENEMYWIPE;
-        break;
-    case INCREASESPEED:
-        newPowerup->color = GRAY;
-        newPowerup->effect = INCREASESPEED;
-        break;
-    case PLUS10SCORE:
-        newPowerup->color = DARKGREEN;
-        newPowerup->effect = PLUS10SCORE;
-        break;
-    case PLUS50SCORE:
-        newPowerup->color = GOLD;
-        newPowerup->effect = PLUS50SCORE;
-        break;
-    case HEALTHUP:
-        newPowerup->color = RED;
-        newPowerup->effect = HEALTHUP;
-    default:
-        TraceLog(LOG_INFO, "This shouldn't happen!");
-        break;
-    }
-
-    newPowerup->position.x = GetRandomValue(50, screenWidth - 50);
-    newPowerup->position.y = GetRandomValue(50, screenHeight - 50);
-    newPowerup->isActive = true;
-
-    return newPowerup;
-}
-
-void playerMovementInput(Entity *player)
-{
-    if (IsKeyDown(KEY_D) && player->body.x < screenWidth - player->body.width)
-        player->body.x += player->speed;
-    if (IsKeyDown(KEY_A) && player->body.x > 0)
-        player->body.x -= player->speed;
-    if (IsKeyDown(KEY_W) && player->body.y > 0)
-        player->body.y -= player->speed;
-    if (IsKeyDown(KEY_S) && player->body.y < screenHeight - player->body.height)
-        player->body.y += player->speed;
-}
-
-void renderPowerup(PowerUp *powerup)
-{
-    if (powerup->isActive)
-    {
-        // TraceLog(LOG_INFO, "POWERUP RENDERED");
-        DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
-    }
-}
-
-void changePowerup(PowerUp *powerup)
-{
-    switch (GetRandomValue(MAXBULLETUP, PLUS50SCORE))
     {
     case MAXBULLETUP:
         powerup->color = BLUE;
@@ -459,18 +452,78 @@ void changePowerup(PowerUp *powerup)
         powerup->color = GOLD;
         powerup->effect = PLUS50SCORE;
         break;
+    case HEALTHUP:
+        powerup->color = RED;
+        powerup->effect = HEALTHUP;
     default:
         TraceLog(LOG_INFO, "This shouldn't happen!");
         break;
     }
-
     powerup->position.x = GetRandomValue(50, screenWidth - 50);
     powerup->position.y = GetRandomValue(50, screenHeight - 50);
-    powerup->isActive = true;
+
 }
 
+// Updates the player's position based on input
+void playerMovementInput(Entity *player)
+{
+    if (IsKeyDown(KEY_D) && player->body.x < screenWidth - player->body.width)
+        player->body.x += player->speed;
+    if (IsKeyDown(KEY_A) && player->body.x > 0)
+        player->body.x -= player->speed;
+    if (IsKeyDown(KEY_W) && player->body.y > 0)
+        player->body.y -= player->speed;
+    if (IsKeyDown(KEY_S) && player->body.y < screenHeight - player->body.height)
+        player->body.y += player->speed;
+}
+
+/**
+ * @brief Renders the player to the screen
+ *
+ * @param player
+ */
+void renderPlayer(Entity *player)
+{
+    Vector2 playerV;
+    Vector2 rotationCenter;
+
+    playerV = createVector2(player->body.x, player->body.y);
+    rotationCenter = (Vector2){player->body.x + player->body.width, player->body.y + player->body.height};
+
+    // DrawRectangleRec(player->body, (Color){155, 0, 0, 155});
+
+    DrawTexturePro(player->sprite,
+                   (Rectangle){0, 0, playerSprite.width, playerSprite.height},
+                   (Rectangle){rotationCenter.x - player->sprite.width / 2, rotationCenter.y - player->sprite.height / 2, playerSprite.width, playerSprite.height},
+                   (Vector2){playerSprite.width / 2, playerSprite.height / 2},
+                   calculateAngle(playerV, mousePos),
+                   WHITE);
+}
+
+// Renders the powerup to the screen
+void renderPowerup(PowerUp *powerup)
+{
+    if (powerup->isActive)
+    {
+        // TraceLog(LOG_INFO, "POWERUP RENDERED");
+        DrawCircle(powerup->position.x, powerup->position.y, 15, powerup->color);
+    }
+}
+
+// Renders the HUD to the screen
 void renderHUD(Entity *player, int frame, int currentScore)
 {
+    if (player == NULL)
+    {
+        TraceLog(LOG_ERROR, "Player is NULL");
+        return;
+    }
+    if (healthTexture.id < 0)
+    {
+        TraceLog(LOG_ERROR, "Health texture is NULL");
+        return;
+    }
+
     DrawText("HEALTH", 30, 40, 20, BLUE);
     for (int i = 0; i < player->health; i++)
     {
@@ -481,10 +534,13 @@ void renderHUD(Entity *player, int frame, int currentScore)
              screenWidth / 2 - 100, screenHeight - 25, 15, BLUE);
 }
 
+// Resets the game to its initial state
 void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, int *prevScore)
 {
-    MemFree(player);
-    player = initPlayer();
+    player->body.x = screenWidth / 2;
+    player->body.y = screenHeight / 2;
+    player->speed = PLAYER_SPEED;
+    player->health = PLAYER_HEALTH;
 
     for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
     {
@@ -504,6 +560,7 @@ void resetGame(Entity *player, Entity **bullets, Entity **enemies, int *frame, i
     *frame = 0;
 }
 
+// Checks for collisions between the player, enemies, bullets, and powerups
 int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp *powerup, int *score)
 {
     // Check for powerups first, they may possibly change the state of enemies
@@ -553,7 +610,7 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
         }
 
         if (enemies[i] != NULL && CheckCollisionRecs(enemies[i]->body, player->body))
-        { // The enemy collided with the player. Triggering a game over
+        { // The enemy collided with the player. Triggering a hit point loss and a sound effect. The enemy is then removed.
             MemFree(enemies[i]);
             enemies[i] = NULL;
             PlaySound(impactFx);
@@ -563,7 +620,8 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
     return 0;
 }
 
-void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player, PowerUp *powerup)
+// Frees all the memory allocated for the entities
+void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player)
 {
     for (int i = 0; i < MAX_BULLETS; i++)
     {
@@ -583,5 +641,4 @@ void cleanupEntities(Entity **bullets, Entity **enemies, Entity *player, PowerUp
     MemFree(bullets);
     MemFree(enemies);
     MemFree(player);
-    MemFree(powerup);
 }

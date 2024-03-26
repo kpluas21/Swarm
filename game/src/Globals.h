@@ -17,8 +17,16 @@ const int screenHeight = 720;
 const char *windowTitle = "Swarm";
 const char *logoString = "A GAME BY\n\nKEVIN PLUAS";
 
+
+
 // Player Globals
-int PLAYER_SPEED = 1;
+int PLAYER_HEALTH = 3;
+float PLAYER_SPEED = 2.5;
+float PLAYER_WIDTH = 45;
+float PLAYER_HEIGHT = 45;
+
+const int ENEMY_SPAWN_INTERVAL = 100; //in frames
+const int POWERUP_SPAWN_INTERVAL = 300; //in frames
 
 const int MAX_ENEMIES = 50; // The upper capacity on the number of enemies on screen at once. Should only really be used when MemAllocing the array
 const int MAX_BULLETS = 10;
@@ -43,6 +51,7 @@ Texture2D floorTexture;
 Texture2D healthTexture;
 Texture2D crosshairTexture;
 Texture2D zombieSprite;
+Texture2D playerSprite;
 
 Vector2 createVector2(int x, int y)
 {
@@ -51,6 +60,18 @@ Vector2 createVector2(int x, int y)
     v.y = y;
 
     return v;
+}
+
+/**
+ * @brief Calculate the angle between two vectors
+ * 
+ * @param origin  The vector from which the angle is calculated
+ * @param target  The vector to which the angle is calculated
+ * @return float  The angle in degrees
+ */
+float calculateAngle(Vector2 origin, Vector2 target)
+{
+    return atan2f(target.y - origin.y, target.x - origin.x) * RAD2DEG;
 }
 
 

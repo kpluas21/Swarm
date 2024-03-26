@@ -1,7 +1,7 @@
 /**
  * @file Bullet.h
- * @author your name (you@domain.com)
- * @brief Functions pertaining to bullets
+ * @author Kevin Pluas
+ * @brief Bullet function declarations and definitions
  * @version 0.1
  * @date 2024-03-23
  *
@@ -44,6 +44,14 @@ Entity **initBullets()
 
     return bullets;
 }
+
+/**
+ * @brief Create a Bullet object   
+ * 
+ * @param bullets 
+ * @param playerV 
+ * @param mouseV 
+ */
 void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
 {
     for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
@@ -73,6 +81,12 @@ void createBullet(Entity **bullets, Vector2 playerV, Vector2 mouseV)
         }
     }
 }
+
+/**
+ * @brief Check if a bullet has gone out of bounds. If it has, destroy it.
+ * 
+ * @param bullets 
+ */
 void checkBulletCollisions(Entity **bullets)
 {
     for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
@@ -93,6 +107,11 @@ void checkBulletCollisions(Entity **bullets)
     }
 }
 
+/**
+ * @brief Updates the position of all the bullets on screen
+ * 
+ * @param bullets 
+ */
 void updateBullets(Entity **bullets)
 {
     for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
@@ -106,6 +125,11 @@ void updateBullets(Entity **bullets)
     }
 }
 
+/**
+ * @brief Renders all the bullets on screen
+ * 
+ * @param bullets 
+ */
 void renderBullets(Entity **bullets)
 {
     for (int i = 0; i < CURRENT_MAX_BULLETS; i++)
