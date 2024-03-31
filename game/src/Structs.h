@@ -46,21 +46,28 @@ typedef enum Effect
     HEALTHUP,
 } Effect;
 
+typedef void (*UpdateFunction)(Entity* entity);
 /**
- * @brief
- *
+ * @brief Represents an entity in the game.
+ * 
+ * An entity is a game object that has health, speed, a body, direction, and a sprite.
  */
+typedef struct Entity
+{
+    int health;             /**< The health of the entity. */
+    float speed;            /**< The speed of the entity. */
+    struct Rectangle body;  /**< The body of the entity. */
+    Vector2 direction;      /**< The direction of the entity. */
+    Texture2D sprite;       /**< The sprite of the entity. */
+    UpdateFunction update;  /**< The update function of the entity. */
+    
+} Entity;
 typedef struct Entity
 {
     int health;
     float speed;
-
-    /// The hitbox of the entity
     struct Rectangle body;
-
-    // Used to determine the trajectory of entities such as bullets and enemies
     Vector2 direction;
-
     Texture2D sprite;
 } Entity;
 
@@ -85,5 +92,12 @@ typedef struct Level
     Texture2D floorTexture;
     
 }Level;
+
+// Linked List of Entities. Used for bullets and enemies
+typedef struct EntityLL
+{
+    Entity *entity;
+    struct EntityLL *next;
+} EntityLL;
 
 #endif

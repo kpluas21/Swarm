@@ -125,6 +125,12 @@ void updateBullets(Entity **bullets)
     }
 }
 
+void updateBullet(Entity* bullet)
+{
+    bullet->body.x += bullet->direction.x * bullet->speed;
+    bullet->body.y += bullet->direction.y * bullet->speed;
+}
+
 /**
  * @brief Renders all the bullets on screen
  * 

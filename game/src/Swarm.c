@@ -96,6 +96,8 @@ int main(void)
     PowerUp powerup;
     createPowerup(&powerup);
 
+    Entity **entities; 
+
     PlayMusicStream(backgroundSong);
     PlayMusicStream(introSong);
 
@@ -639,6 +641,18 @@ int checkCollisions(Entity **enemies, Entity **bullets, Entity *player, PowerUp 
         }
     }
     return 0;
+}
+
+void initEntities(Entity **entities)
+{
+    for(int i = 0; i < MAX_ENEMIES; i++)
+    {
+        entities[i] = NULL;
+    }
+    for(int i = MAX_BULLETS; i < MAX_BULLETS; i++)
+    {
+        entities[i] = NULL;
+    }
 }
 
 // Frees all the memory allocated for the entities

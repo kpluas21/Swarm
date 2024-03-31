@@ -119,6 +119,17 @@ void updateEnemies(Entity **enemies, Vector2 playerV)
     }
 }
 
+void updateEnemy(Entity *enemy)
+{
+    if(enemy == NULL)
+    {
+        return;
+    }
+    enemy->direction = Vector2Normalize(Vector2Subtract(playerV, createVector2(enemy->body.x, enemy->body.y)));
+    enemy->body.y += enemy->direction.y * enemy->speed;
+    enemy->body.x += enemy->direction.x * enemy->speed;
+}
+
 
 /**
  * @brief Render the enemies on screen
